@@ -1,0 +1,77 @@
+/*
+====================================================
+ÁREA ADMIN – PROJETOS (views/admin/projects/)
+====================================================
+
+Objetivo:
+Permitir ao administrador gerenciar projetos (templates de sistemas)
+e suas instâncias (clientes), integrando com o controller do Node
+que consome os recursos do Go.
+
+Estrutura de templates:
+
+1️⃣ list.handlebars
+------------------------------------
+- Função: Listar todos os projetos cadastrados
+- Elementos:
+  - Tabela de projetos: Nome, Código, Versão, Status, Ações
+  - Botão "Criar Projeto" → abre create.handlebars ou modal
+  - Botões de ação por projeto: Editar, Deletar, Gerenciar Instâncias
+  - Flash messages (sucesso/erro)
+
+2️⃣ create.handlebars
+------------------------------------
+- Função: Formulário para criar novo projeto
+- Elementos:
+  - Inputs: Nome, Código, Tipo, Versão, Status, API Key
+  - Botão "Salvar" → envia para POST /projects
+  - Reaproveita partial: project_form.handlebars
+
+3️⃣ edit.handlebars
+------------------------------------
+- Função: Formulário para editar projeto existente
+- Elementos:
+  - Inputs preenchidos com dados do projeto
+  - Botão "Atualizar" → envia para PUT /projects/:id
+  - Botão "Deletar" (opcional)
+  - Reaproveita partial: project_form.handlebars
+
+4️⃣ instances.handlebars
+------------------------------------
+- Função: Gerenciar instâncias (clientes) de um projeto
+- Elementos:
+  - Tabela de instâncias: Nome, Código, Status, Ações
+  - Botão "Criar Instância" → envia para POST /instances
+  - Reaproveita partial: instance_table.handlebars
+
+Partials:
+------------------------------------
+1) project_form.handlebars
+  - Formulário reutilizável para criar ou editar projetos
+  - Inputs dinâmicos preenchidos pelo controller
+  - Botão submit dinâmico: "Criar" ou "Atualizar"
+
+2) instance_table.handlebars
+  - Tabela reutilizável de instâncias de um projeto
+  - Inclui botões de ação: Editar, Deletar
+  - Pode ser incluída em instances.handlebars ou modais
+
+Considerações gerais:
+------------------------------------
+- Layout único: layouts/main.handlebars garante consistência visual
+- Flash messages para feedback de ações (sucesso/erro)
+- Interação mínima via JS: modais de formulário e confirmações de deleção
+- Server-side rendering (SSR) com Express + Handlebars
+- Escalável: permite adição de filtros, ordenação, paginação futura
+- Todas as ações do admin chamam controller Node que consome Go
+
+Fluxo resumido:
+------------------------------------
+1) GET /admin/projects → list.handlebars
+2) Clicar "Criar Projeto" → create.handlebars com project_form
+3) Clicar "Editar" → edit.handlebars com project_form preenchido
+4) Clicar "Instâncias" → instances.handlebars com instance_table
+5) Submissão de formulários chama controller → Go → MasterDB
+
+====================================================
+*/

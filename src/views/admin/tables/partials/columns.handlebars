@@ -1,0 +1,10 @@
+{{!-- Partial para renderizar colunas em create/edit --}}
+{{!-- Espera array "columns" --}}
+{{#each columns}}
+<div class="mb-2">
+  <input type="text" name="columns[{{@index}}][name]" value="{{this.name}}" placeholder="Nome da coluna" required>
+  <input type="text" name="columns[{{@index}}][type]" value="{{this.type}}" placeholder="Tipo" required>
+  <label><input type="checkbox" name="columns[{{@index}}][nullable]" {{#if this.nullable}}checked{{/if}}> Nullable</label>
+  <label><input type="checkbox" name="columns[{{@index}}][unique]" {{#if this.unique}}checked{{/if}}> Unique</label>
+</div>
+{{/each}}

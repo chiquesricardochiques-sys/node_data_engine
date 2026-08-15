@@ -1,0 +1,59 @@
+{{!-- views/admin/projects/list.handlebars --}}
+{{#extends 'layouts/main'}}
+
+{{#block 'title'}}Projetos{{/block}}
+
+{{#block 'content'}}
+<div class="container mt-5">
+  <h1>Projetos</h1>
+
+  <a href="/admin/projects/create" class="btn btn-success mb-3">+ Novo Projeto</a>
+
+  {{#if projects.length}}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nome</th>
+          <th>Código</th>
+          <th>Tipo</th>
+          <th>Versão</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each projects}}
+        <tr>
+          <td>{{this.id}}</td>
+          <td>{{this.name}}</td>
+          <td>{{this.code}}</td>
+          <td>{{this.type}}</td>
+          <td>{{this.version}}</td>
+          <td>{{this.status}}</td>
+          <td>
+            <a href="/admin/projects/{{this.id}}/edit" class="btn btn-sm btn-primary">Editar</a>
+            <button class="btn btn-sm btn-danger btn-delete" data-id="{{this.id}}">Deletar</button>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <p>Nenhum projeto cadastrado.</p>
+  {{/if}}
+</div>
+
+<script>
+document.querySelectorAll('.btn-delete').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if(confirm('Deseja realmente deletar este projeto?')) {
+      const id = btn.dataset.id;
+      const res = await fetch(`/admin/projects/${id}`, { method: 'DELETE' });
+      if(res.ok) location.reload();
+      else alert('Erro ao deletar projeto');
+    }
+  });
+});
+</script>
+{{/block}}

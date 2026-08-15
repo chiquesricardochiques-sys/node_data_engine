@@ -1,0 +1,30 @@
+{{!-- views/admin/tables/edit.handlebars --}}
+<h1>Editar Tabela: {{table.name}} - Projeto: {{project.name}}</h1>
+
+<h4>Colunas Existentes</h4>
+<ul>
+  {{#each table.columns}}
+    <li>
+      {{this.name}} ({{this.type}})
+      <form method="POST" action="/admin/tables/column/delete" style="display:inline;">
+        <input type="hidden" name="project_id" value="{{project.id}}">
+        <input type="hidden" name="table_name" value="{{table.name}}">
+        <input type="hidden" name="column" value="{{this.name}}">
+        <button type="submit" class="btn btn-sm btn-danger">Remover</button>
+      </form>
+    </li>
+  {{/each}}
+</ul>
+
+<h4>Adicionar Nova Coluna</h4>
+<form id="addColumnForm" method="POST" action="/admin/tables/column/add">
+  <input type="hidden" name="project_id" value="{{project.id}}">
+  <input type="hidden" name="table_name" value="{{table.name}}">
+
+  <input type="text" name="name" placeholder="Nome da coluna" required>
+  <input type="text" name="type" placeholder="Tipo (ex: VARCHAR(150))" required>
+  <label><input type="checkbox" name="nullable"> Nullable</label>
+  <label><input type="checkbox" name="unique"> Unique</label>
+
+  <button type="submit" class="btn btn-success mt-2">Adicionar Coluna</button>
+</form>

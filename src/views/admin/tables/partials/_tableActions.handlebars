@@ -1,0 +1,7 @@
+{{!-- Partial para ações da tabela --}}
+<a href="/admin/tables/edit?project_id={{projectId}}&table={{table.name}}" class="btn btn-sm btn-warning">Editar</a>
+<form method="POST" action="/admin/tables/delete" style="display:inline;">
+  <input type="hidden" name="project_id" value="{{projectId}}">
+  <input type="hidden" name="table_name" value="{{table.name}}">
+  <button type="submit" class="btn btn-sm btn-danger">Deletar</button>
+</form>

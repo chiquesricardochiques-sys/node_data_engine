@@ -1,0 +1,19 @@
+<div class="list-group mt-3">
+  {{#each instances}}
+    <div class="list-group-item d-flex justify-content-between align-items-center">
+      <div>
+        <strong>{{this.name}}</strong> - {{this.code}} - {{this.status}} 
+        <br>
+        Cliente: {{this.client_name}} | Email: {{this.email}} | Tel: {{this.phone}} | Preço: {{this.price}} | Dia Pagto: {{this.payment_day}}
+      </div>
+      <div>
+        <a href="/admin/projects/{{../project.id}}/instances/{{this.id}}/edit" class="btn btn-sm btn-primary me-2">Editar</a>
+        <form action="/admin/projects/{{../project.id}}/instances/{{this.id}}/delete" method="POST" style="display:inline-block;">
+          <button type="submit" class="btn btn-sm btn-danger">Deletar</button>
+        </form>
+      </div>
+    </div>
+  {{else}}
+    <p>Nenhuma instância cadastrada para este projeto.</p>
+  {{/each}}
+</div>

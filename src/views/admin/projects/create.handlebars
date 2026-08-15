@@ -1,0 +1,127 @@
+<style>
+  /* ===============================
+    Formulário de Criação de Projeto
+  ================================= */
+
+  #createProjectForm {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease-in-out;
+  }
+
+  #createProjectForm h1 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: #333333;
+    font-size: 1.8rem;
+    font-weight: 600;
+  }
+
+  #createProjectForm .form-label {
+    font-weight: 500;
+    color: #555555;
+  }
+
+  #createProjectForm .form-control,
+  #createProjectForm .form-select {
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  #createProjectForm .form-control:focus,
+  #createProjectForm .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+    border-color: #0d6efd;
+  }
+
+  #createProjectForm .btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transition: all 0.2s;
+  }
+
+  #createProjectForm .btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+  }
+
+  #createProjectForm .btn-secondary {
+    transition: all 0.2s;
+  }
+
+  #createProjectForm .btn-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+  }
+
+  /* Alerts */
+  #createProjectForm .alert {
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+  }
+
+  /* Responsividade */
+  @media (max-width: 768px) {
+    #createProjectForm {
+      padding: 1.5rem;
+      margin: 1rem;
+    }
+  }
+
+</style>
+
+
+<h1>Criar Novo Projeto</h1>
+
+{{!-- Feedback de erro ou sucesso --}}
+{{#if error}}
+  <div class="alert alert-danger">{{error}}</div>
+{{/if}}
+{{#if success}}
+  <div class="alert alert-success">{{success}}</div>
+{{/if}}
+
+<form id="createProjectForm" action="/admin/projects/api" method="POST">
+  <div class="mb-3">
+    <label for="name" class="form-label">Nome do Projeto</label>
+    <input type="text" class="form-control" id="name" name="name" placeholder="Ex: Barbearia" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="code" class="form-label">Código do Projeto</label>
+    <input type="text" class="form-control" id="code" name="code" placeholder="Ex: barbearia" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="type" class="form-label">Tipo</label>
+    <input type="text" class="form-control" id="type" name="type" placeholder="Ex: barbearia, clinica" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="version" class="form-label">Versão</label>
+    <input type="text" class="form-control" id="version" name="version" value="1.0" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="status" class="form-label">Status</label>
+    <select class="form-select" id="status" name="status" required>
+      <option value="active" selected>Ativo</option>
+      <option value="inactive">Inativo</option>
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label for="api_key" class="form-label">API Key</label>
+    <input type="text" class="form-control" id="api_key" name="api_key" placeholder="Gerar chave API" required>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Criar Projeto</button>
+  <a href="/admin/projects" class="btn btn-secondary ms-2">Cancelar</a>
+</form>

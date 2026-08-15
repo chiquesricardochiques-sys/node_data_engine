@@ -1,0 +1,57 @@
+{{!-- views/admin/projects/edit.handlebars --}}
+
+<div class="container mt-5">
+  <h1>Editar Projeto</h1>
+
+  {{#if error}}
+    <div class="alert alert-danger">{{error}}</div>
+  {{/if}}
+  {{#if success}}
+    <div class="alert alert-success">{{success}}</div>
+  {{/if}}
+
+  <form id="editProjectForm" action="/admin/projects/{{project.id}}" method="POST">
+  {{#if error}}
+    <div class="alert alert-danger">{{error}}</div>
+  {{/if}}
+  {{#if success}}
+    <div class="alert alert-success">{{success}}</div>
+  {{/if}}
+
+    <div class="mb-3">
+      <label for="name" class="form-label">Nome do Projeto</label>
+      <input type="text" class="form-control" id="name" name="name" value="{{project.name}}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="code" class="form-label">Código do Projeto</label>
+      <input type="text" class="form-control" id="code" name="code" value="{{project.code}}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="type" class="form-label">Tipo</label>
+      <input type="text" class="form-control" id="type" name="type" value="{{project.type}}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="version" class="form-label">Versão</label>
+      <input type="text" class="form-control" id="version" name="version" value="{{project.version}}" required>
+    </div>
+
+    <div class="mb-3">
+      <label for="status" class="form-label">Status</label>
+      <select class="form-select" id="status" name="status" required>
+        <option value="active" {{#equals project.status "active"}}selected{{/equals}}>Ativo</option>
+        <option value="inactive" {{#equals project.status "inactive"}}selected{{/equals}}>Inativo</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="api_key" class="form-label">API Key</label>
+      <input type="text" class="form-control" id="api_key" name="api_key" value="{{project.api_key}}" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+    <a href="/admin/projects" class="btn btn-secondary ms-2">Cancelar</a>
+  </form>
+</div>

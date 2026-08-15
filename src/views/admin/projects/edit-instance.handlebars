@@ -1,0 +1,52 @@
+<form action="/admin/projects/{{project.id}}/instances/{{instance.id}}" method="POST">
+  <div class="mb-3">
+    <label for="client_name" class="form-label">Nome do Cliente</label>
+    <input type="text" class="form-control" id="client_name" name="client_name" value="{{instance.client_name}}" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="email" class="form-label">E-mail</label>
+    <input type="email" class="form-control" id="email" name="email" value="{{instance.email}}">
+  </div>
+
+  <div class="mb-3">
+    <label for="phone" class="form-label">Telefone</label>
+    <input type="text" class="form-control" id="phone" name="phone" value="{{instance.phone}}">
+  </div>
+
+  <div class="mb-3">
+    <label for="price" class="form-label">Preço</label>
+    <input type="number" step="0.01" class="form-control" id="price" name="price" value="{{instance.price}}">
+  </div>
+
+  <div class="mb-3">
+    <label for="payment_day" class="form-label">Dia de Pagamento</label>
+    <input type="number" min="1" max="31" class="form-control" id="payment_day" name="payment_day" value="{{instance.payment_day}}">
+  </div>
+
+  <div class="mb-3">
+    <label for="name" class="form-label">Nome da Instância</label>
+    <input type="text" class="form-control" id="name" name="name" value="{{instance.name}}" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="code" class="form-label">Código da Instância</label>
+    <input type="text" class="form-control" id="code" name="code" value="{{instance.code}}" required>
+  </div>
+
+  <div class="mb-3">
+    <label for="description" class="form-label">Descrição</label>
+    <textarea class="form-control" id="description" name="description">{{instance.description}}</textarea>
+  </div>
+
+  <div class="mb-3">
+    <label for="status" class="form-label">Status</label>
+    <select class="form-select" id="status" name="status" required>
+      <option value="active" {{#if (eq instance.status 'active')}}selected{{/if}}>Ativo</option>
+      <option value="inactive" {{#if (eq instance.status 'inactive')}}selected{{/if}}>Inativo</option>
+    </select>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Atualizar Instância</button>
+  <a href="/admin/projects/{{project.id}}/instances" class="btn btn-secondary ms-2">Cancelar</a>
+</form>

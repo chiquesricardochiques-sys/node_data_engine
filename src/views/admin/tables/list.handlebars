@@ -1,0 +1,252 @@
+<div class="page-header">
+  <h1>?? Tabelas do Projeto: {{project.name}}</h1>
+  <a href="/admin/tables/create?project_id={{project.id}}" class="btn-primary">
+    ? Nova Tabela
+  </a>
+</div>
+
+{{#if tables}}
+  <div class="tables-grid">
+    {{#each tables}}
+    <div class="table-card">
+      <div class="table-header">
+        <h3>{{this.name}}</h3>
+        <div class="actions">
+          <a href="/admin/tables/details?project_id={{../project.id}}&table={{this}}">
+            Ver Detalhes
+          </a>
+          <form method="POST" action="/admin/tables/delete" style="display:inline">
+            <input type="hidden" name="project_id" value="{{../project.id}}">
+            <input type="hidden" name="table" value="{{this.name}}">
+            <button type="submit" class="btn-danger" onclick="return confirm('Deletar tabela {{this.name}}?')">
+              ??? Deletar
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="table-info">
+        <div class="info-section">
+          <h4>?? Colunas ({{this.columns.length}})</h4>
+          <ul class="columns-list">
+            {{#each this.columns}}
+            <li>
+              <span class="col-name">{{this.name}}</span>
+              <span class="col-type">{{this.type}}</span>
+              {{#if this.key}}
+                {{#if (eq this.key "PRI")}}<span class="badge primary">?? PK</span>{{/if}}
+                {{#if (eq this.key "UNI")}}<span class="badge unique">? UNIQUE</span>{{/if}}
+                {{#if (eq this.key "MUL")}}<span class="badge index">?? INDEX</span>{{/if}}
+              {{/if}}
+              {{#unless this.nullable}}<span class="badge notnull">NOT NULL</span>{{/unless}}
+            </li>
+            {{/each}}
+          </ul>
+        </div>
+
+        {{#if this.indexes}}
+        <div class="info-section">
+          <h4>?? Índices ({{this.indexes.length}})</h4>
+          <ul class="indexes-list">
+            {{#each this.indexes}}
+            <li>
+              <strong>{{this.type}}</strong>: {{this.name}}
+              <span class="index-cols">({{#each this.columns}}{{this}}{{#unless @last}}, {{/unless}}{{/each}})</span>
+            </li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+    {{/each}}
+  </div>
+{{else}}
+  <div class="empty-state">
+    <p>?? Nenhuma tabela criada ainda</p>
+    <a href="/admin/tables/create?project_id={{project.id}}" class="btn-primary">
+      Criar primeira tabela
+    </a>
+  </div>
+{{/if}}
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
+  }
+
+  .tables-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    gap: 20px;
+  }
+
+  .table-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.3s;
+  }
+
+  .table-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #007bff;
+  }
+
+  .table-header h3 {
+    margin: 0;
+    color: #007bff;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-primary, .btn-view, .btn-danger {
+    padding: 8px 15px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .btn-primary {
+    background: #007bff;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #0056b3;
+  }
+
+  .btn-view {
+    background: #28a745;
+    color: white;
+  }
+
+  .btn-view:hover {
+    background: #218838;
+  }
+
+  .btn-danger {
+    background: #dc3545;
+    color: white;
+  }
+
+  .btn-danger:hover {
+    background: #c82333;
+  }
+
+  .table-info {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .info-section h4 {
+    margin: 0 0 10px 0;
+    color: #666;
+    font-size: 14px;
+    text-transform: uppercase;
+  }
+
+  .columns-list, .indexes-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .columns-list li {
+    padding: 8px 10px;
+    background: #f8f9fa;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .col-name {
+    font-weight: 600;
+    color: #333;
+  }
+
+  .col-type {
+    font-family: 'Courier New', monospace;
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  .badge {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge.primary {
+    background: #007bff;
+    color: white;
+  }
+
+  .badge.unique {
+    background: #ffc107;
+    color: #333;
+  }
+
+  .badge.index {
+    background: #17a2b8;
+    color: white;
+  }
+
+  .badge.notnull {
+    background: #6c757d;
+    color: white;
+  }
+
+  .indexes-list li {
+    padding: 8px 10px;
+    background: #fff3cd;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    border-left: 3px solid #ffc107;
+  }
+
+  .index-cols {
+    color: #666;
+    font-size: 13px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .empty-state p {
+    font-size: 18px;
+    color: #999;
+    margin-bottom: 20px;
+  }
+</style>

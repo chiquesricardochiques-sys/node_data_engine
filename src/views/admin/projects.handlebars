@@ -1,0 +1,31 @@
+<h1>📦 Projetos</h1>
+
+<a href="/admin/projects/create" class="btn btn-success mb-3">Criar Novo Projeto</a>
+
+<table border="1" cellpadding="8" class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Nome</th>
+      <th>API KEY</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each projects}}
+      <tr>
+        <td>{{this.id}}</td>
+        <td>{{this.name}}</td>
+        <td>{{this.api_key}}</td>
+        <td>
+          <a href="/admin/projects/edit/{{this.id}}" class="btn btn-primary btn-sm">Editar</a>
+          <a href="/admin/projects/instances/{{this.id}}" class="btn btn-info btn-sm">Instâncias</a>
+        </td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+{{#unless projects}}
+  <p>Nenhum projeto cadastrado ainda.</p>
+{{/unless}}

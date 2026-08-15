@@ -1,0 +1,502 @@
+<style>
+    /* ===== TÍTULO ===== */
+    h1 {
+    margin-bottom: 15px;
+    font-size: 22px;
+    }
+
+    /* ===== FORM ===== */
+    form {
+    max-width: 1100px;
+    }
+
+    /* ===== BOX SIMPLES ===== */
+    .box {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    max-width: 400px;
+    }
+
+    .box label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+    }
+
+    .box input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    }
+
+    /* ===== SEPARADOR ===== */
+    hr {
+    margin: 25px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+    }
+
+    /* ===== SECTIONS ===== */
+    .section {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    }
+
+    .section .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    }
+
+    .section h3 {
+    margin: 0;
+    }
+
+    /* ===== TABELAS ===== */
+    .schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    }
+
+    .schema-table thead {
+    background: #f5f6f8;
+    }
+
+    .schema-table th,
+    .schema-table td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    }
+
+    .schema-table tr:hover {
+    background: #fafafa;
+    }
+
+    .empty {
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    }
+
+    /* ===== BOTÕES ===== */
+    button,
+    .btn-primary,
+    .btn-secondary,
+    .btn-add,
+    .btn-success,
+    .btn-cancel {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    }
+
+    .btn-primary {
+    background: #1a73e8;
+    color: #fff;
+    }
+
+    .btn-secondary {
+    background: #f1f1f1;
+    color: #333;
+    text-decoration: none;
+    }
+
+    .btn-add {
+    background: #eef5ff;
+    color: #1a73e8;
+    }
+
+    .btn-success {
+    background: #28a745;
+    color: #fff;
+    }
+
+    .btn-cancel {
+    background: #e0e0e0;
+    color: #333;
+    }
+
+    /* ===== PAINÉIS (MODAIS) ===== */
+    .panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid #ccc;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    z-index: 1000;
+    }
+
+    .panel h3 {
+    margin-top: 0;
+    }
+
+    .panel label {
+    display: block;
+    margin-top: 10px;
+    font-weight: 500;
+    }
+
+    .panel input,
+    .panel select {
+    width: 100%;
+    padding: 7px;
+    margin-top: 5px;
+    font-size: 14px;
+    }
+
+    .panel small {
+    display: block;
+    margin-top: 5px;
+    color: #666;
+    }
+
+    /* ===== CHECKS ===== */
+    .checks {
+    margin-top: 10px;
+    }
+
+    .checks label {
+    display: block;
+    font-size: 14px;
+    }
+
+    /* ===== AÇÕES DO PAINEL ===== */
+    .panel-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
+    }
+
+    /* ===== UTIL ===== */
+    .hidden {
+    display: none;
+    }
+
+</style>
+
+<h1>Criar Tabela Personalizada — {{project.name}}</h1>
+
+<form method="POST" action="/admin/tables/create" onsubmit="beforeSubmit(event)">
+  <input type="hidden" name="project_id" value="{{project.id}}">
+  <input type="hidden" name="columns_json" id="columns-json">
+  <input type="hidden" name="indexes_json" id="indexes-json">
+
+  <div class="box">
+    <label>Nome da Tabela</label>
+    <input type="text" name="table_name" required placeholder="Ex: clientes, produtos">
+  </div>
+
+  <hr>
+
+  <!-- SEÇÃO DE COLUNAS -->
+  <div class="section">
+    <div class="header">
+      <h3>?? Colunas</h3>
+      <button type="button" onclick="openColumnPanel()" class="btn-add">? Nova Coluna</button>
+    </div>
+
+    <table class="schema-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th>Null</th>
+          <th>Unique</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="columns-list">
+        <tr><td colspan="5" class="empty">Nenhuma coluna criada</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr>
+
+  <!-- SEÇÃO DE ÍNDICES -->
+  <div class="section">
+    <div class="header">
+      <h3>?? Índices (opcional)</h3>
+      <button type="button" onclick="openIndexPanel()" class="btn-add">? Novo Índice</button>
+    </div>
+
+    <table class="schema-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th>Colunas</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="indexes-list">
+        <tr><td colspan="4" class="empty">Nenhum índice criado</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <br>
+  <button type="submit" class="btn-primary">? Criar Tabela</button>
+  <a href="/admin/tables?project_id={{project.id}}" class="btn-secondary">? Cancelar</a>
+</form>
+
+<!-- PAINEL DE COLUNA -->
+<div id="column-panel" class="panel hidden">
+  <h3>Nova Coluna</h3>
+  
+  <label>Nome</label>
+  <input id="col-name" placeholder="Ex: nome, email">
+
+  <label>Tipo</label>
+  <select id="col-type" onchange="updateTypeHint()">
+    <option value="VARCHAR(255)">VARCHAR(255)</option>
+    <option value="TEXT">TEXT</option>
+    <option value="INT">INT</option>
+    <option value="BIGINT">BIGINT</option>
+    <option value="DECIMAL(10,2)">DECIMAL(10,2)</option>
+    <option value="BOOLEAN">BOOLEAN</option>
+    <option value="DATE">DATE</option>
+    <option value="DATETIME">DATETIME</option>
+    <option value="TIMESTAMP">TIMESTAMP</option>
+    <option value="JSON">JSON</option>
+    <option value="CUSTOM">?? Personalizado</option>
+  </select>
+
+  <div id="custom-type-box" style="display:none">
+    <label>Tipo Personalizado</label>
+    <input id="col-custom-type" placeholder="Ex: VARCHAR(100), ENUM('A','B')">
+  </div>
+
+  <div class="checks">
+    <label><input type="checkbox" id="col-nullable"> Nullable (permite NULL)</label>
+    <label><input type="checkbox" id="col-unique"> Unique (valor único)</label>
+  </div>
+
+  <div class="panel-actions">
+    <button type="button" onclick="saveColumn()" class="btn-success">Salvar</button>
+    <button type="button" onclick="closePanel('column-panel')" class="btn-cancel">Cancelar</button>
+  </div>
+</div>
+
+<!-- PAINEL DE ÍNDICE -->
+<div id="index-panel" class="panel hidden">
+  <h3>Novo Índice</h3>
+
+  <label>Nome do Índice</label>
+  <input id="idx-name" placeholder="Ex: idx_nome_email">
+
+  <label>Tipo</label>
+  <select id="idx-type">
+    <option value="INDEX">INDEX (normal)</option>
+    <option value="UNIQUE">UNIQUE (único)</option>
+  </select>
+
+  <label>Colunas (selecione múltiplas com Ctrl/Cmd)</label>
+  <select id="idx-columns" multiple size="6">
+    <!-- Preenchido dinamicamente -->
+  </select>
+  <small>?? Segure Ctrl/Cmd para selecionar múltiplas colunas</small>
+
+  <div class="panel-actions">
+    <button type="button" onclick="saveIndex()" class="btn-success">Salvar</button>
+    <button type="button" onclick="closePanel('index-panel')" class="btn-cancel">Cancelar</button>
+  </div>
+</div>
+
+<script>
+  let columns = [];
+  let indexes = [];
+
+  // ===== COLUNAS =====
+  function openColumnPanel() {
+    document.getElementById("column-panel").classList.remove("hidden");
+  }
+
+  function closePanel(id) {
+    document.getElementById(id).classList.add("hidden");
+    clearPanelInputs(id);
+  }
+
+  function clearPanelInputs(id) {
+    if (id === "column-panel") {
+      document.getElementById("col-name").value = "";
+      document.getElementById("col-custom-type").value = "";
+      document.getElementById("col-nullable").checked = false;
+      document.getElementById("col-unique").checked = false;
+      document.getElementById("col-type").value = "VARCHAR(255)";
+      updateTypeHint();
+    }
+
+    if (id === "index-panel") {
+      document.getElementById("idx-name").value = "";
+      document.getElementById("idx-type").value = "INDEX";
+      document.getElementById("idx-columns").selectedIndex = -1;
+    }
+  }
+
+  function updateTypeHint() {
+    const val = document.getElementById("col-type").value;
+    document.getElementById("custom-type-box").style.display =
+      val === "CUSTOM" ? "block" : "none";
+  }
+
+  function saveColumn() {
+    let type = document.getElementById("col-type").value;
+    if (type === "CUSTOM") {
+      type = document.getElementById("col-custom-type").value.trim();
+    }
+
+    const name = document.getElementById("col-name").value.trim();
+
+    if (!name || !type) {
+      alert("Nome e tipo são obrigatórios");
+      return;
+    }
+
+    columns.push({
+      name,
+      type,
+      nullable: document.getElementById("col-nullable").checked,
+      unique: document.getElementById("col-unique").checked
+    });
+
+    closePanel("column-panel");
+    renderColumns();
+    updateIndexColumnsList();
+  }
+
+  function deleteColumn(index) {
+    if (confirm("Remover coluna?")) {
+      columns.splice(index, 1);
+      renderColumns();
+      updateIndexColumnsList();
+    }
+  }
+
+  function renderColumns() {
+    const tbody = document.getElementById("columns-list");
+    tbody.innerHTML = "";
+
+    if (columns.length === 0) {
+      tbody.innerHTML =
+        `<tr><td colspan="5" class="empty">Nenhuma coluna criada</td></tr>`;
+      return;
+    }
+
+    columns.forEach((c, i) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.type}</td>
+          <td>${c.nullable ? "✔️" : "❌"}</td>
+          <td>${c.unique ? "✔️" : "❌"}</td>
+          <td>
+            <button type="button" onclick="deleteColumn(${i})">🗑</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  // ===== ÍNDICES =====
+  function openIndexPanel() {
+    if (columns.length === 0) {
+      alert("Crie ao menos uma coluna antes de criar índices");
+      return;
+    }
+    document.getElementById("index-panel").classList.remove("hidden");
+  }
+
+  function updateIndexColumnsList() {
+    const select = document.getElementById("idx-columns");
+    select.innerHTML = "";
+
+    columns.forEach(col => {
+      const opt = document.createElement("option");
+      opt.value = col.name;
+      opt.textContent = col.name;
+      select.appendChild(opt);
+    });
+  }
+
+  function saveIndex() {
+    const name = document.getElementById("idx-name").value.trim();
+    const type = document.getElementById("idx-type").value;
+    const selected = Array.from(
+      document.getElementById("idx-columns").selectedOptions
+    ).map(o => o.value);
+
+    if (!name || selected.length === 0) {
+      alert("Nome e colunas do índice são obrigatórios");
+      return;
+    }
+
+    indexes.push({
+      name,
+      type,
+      columns: selected
+    });
+
+    closePanel("index-panel");
+    renderIndexes();
+  }
+
+  function deleteIndex(index) {
+    if (confirm("Remover índice?")) {
+      indexes.splice(index, 1);
+      renderIndexes();
+    }
+  }
+
+  function renderIndexes() {
+    const tbody = document.getElementById("indexes-list");
+    tbody.innerHTML = "";
+
+    if (indexes.length === 0) {
+      tbody.innerHTML =
+        `<tr><td colspan="4" class="empty">Nenhum índice criado</td></tr>`;
+      return;
+    }
+
+    indexes.forEach((idx, i) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${idx.name}</td>
+          <td>${idx.type}</td>
+          <td>${idx.columns.join(", ")}</td>
+          <td>
+            <button type="button" onclick="deleteIndex(${i})">🗑</button>
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  // ===== SUBMIT FINAL =====
+  function beforeSubmit(e) {
+    if (columns.length === 0) {
+      alert("A tabela precisa ter pelo menos uma coluna");
+      e.preventDefault();
+      return;
+    }
+
+    document.getElementById("columns-json").value = JSON.stringify(columns);
+    document.getElementById("indexes-json").value = JSON.stringify(indexes);
+  }
+</script>

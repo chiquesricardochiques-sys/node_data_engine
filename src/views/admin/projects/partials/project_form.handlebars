@@ -1,0 +1,35 @@
+{{!-- views/admin/projects/partials/project_form.handlebars --}}
+<div class="mb-3">
+  <label for="name" class="form-label">Nome</label>
+  <input type="text" name="name" id="name" class="form-control" value="{{project.name}}" required>
+</div>
+
+<div class="mb-3">
+  <label for="code" class="form-label">Código</label>
+  <input type="text" name="code" id="code" class="form-control" value="{{project.code}}" required>
+</div>
+
+<div class="mb-3">
+  <label for="type" class="form-label">Tipo</label>
+  <input type="text" name="type" id="type" class="form-control" value="{{project.type}}">
+</div>
+
+<div class="mb-3">
+  <label for="version" class="form-label">Versão</label>
+  <input type="text" name="version" id="version" class="form-control" value="{{project.version}}">
+</div>
+
+<div class="mb-3">
+  <label for="status" class="form-label">Status</label>
+  <select name="status" id="status" class="form-select">
+    <option value="active" {{#ifCond project.status '==' 'active'}}selected{{/ifCond}}>Ativo</option>
+    <option value="inactive" {{#ifCond project.status '==' 'inactive'}}selected{{/ifCond}}>Inativo</option>
+  </select>
+</div>
+
+<div class="mb-3">
+  <label for="api_key" class="form-label">API Key</label>
+  <input type="text" name="api_key" id="api_key" class="form-control" value="{{project.api_key}}" required>
+</div>
+
+<button type="submit" class="btn btn-success">{{submitLabel}}</button>

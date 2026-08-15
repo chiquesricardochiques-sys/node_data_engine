@@ -1,0 +1,56 @@
+<h1>Tabelas do Projeto: {{project.name}}</h1>
+
+<!-- Criar Tabela -->
+<form action="/admin/tables/create" method="POST">
+  <input type="hidden" name="project_id" value="{{project.id}}" />
+  <input type="text" name="table_name" placeholder="Nome da tabela" required />
+  <button type="submit">Criar Tabela</button>
+</form>
+
+<hr />
+
+<!-- Lista de tabelas existentes -->
+{{#if tables.length}}
+  <ul>
+    {{#each tables}}
+      <li>
+        <strong>{{this.name}}</strong>
+        
+        <!-- Deletar tabela -->
+        <form style="display:inline" action="/admin/tables/delete" method="POST">
+          <input type="hidden" name="project_id" value="{{../project.id}}" />
+          <input type="hidden" name="table" value="{{this.name}}" />
+          <button type="submit">Deletar Tabela</button>
+        </form>
+
+        <!-- Colunas da tabela -->
+        <ul>
+          {{#each this.columns}}
+            <li>
+              {{this.name}} ({{this.type}})
+              <form style="display:inline" action="/admin/tables/column/drop" method="POST">
+                <input type="hidden" name="project_id" value="{{../../project.id}}" />
+                <input type="hidden" name="table" value="{{../this.name}}" />
+                <input type="hidden" name="column" value="{{this.name}}" />
+                <button type="submit">Remover</button>
+              </form>
+            </li>
+          {{/each}}
+        </ul>
+
+        <!-- Adicionar coluna -->
+        <form action="/admin/tables/column/add" method="POST">
+          <input type="hidden" name="project_id" value="{{../project.id}}" />
+          <input type="hidden" name="table" value="{{this.name}}" />
+          <input type="text" name="name" placeholder="Nome da coluna" required />
+          <input type="text" name="type" placeholder="Tipo (ex: VARCHAR(50))" required />
+          <label><input type="checkbox" name="nullable" /> Nullable</label>
+          <label><input type="checkbox" name="unique" /> Unique</label>
+          <button type="submit">Adicionar Coluna</button>
+        </form>
+      </li>
+    {{/each}}
+  </ul>
+{{else}}
+  <p>Nenhuma tabela criada ainda.</p>
+{{/if}}
