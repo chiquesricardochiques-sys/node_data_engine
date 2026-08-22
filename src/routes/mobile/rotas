@@ -1,0 +1,26 @@
+📱 API MOBILE
+
+PUBLIC
+│
+├── GET /public/home
+├── GET /public/services
+├── GET /public/professionals
+├── GET /public/comments
+└── GET /public/texts
+
+AUTH
+│
+├── POST /auth/register
+├── POST /auth/login
+├── POST /auth/forgot
+├── POST /auth/reset
+└── GET  /auth/me
+
+CLIENT
+│
+├── GET    /horarios
+├── POST   /schedule
+├── GET    /my-schedules
+├── DELETE /schedule/:id
+├── GET    /profile
+└── PUT    /profile

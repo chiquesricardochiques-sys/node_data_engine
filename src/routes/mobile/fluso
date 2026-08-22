@@ -1,0 +1,12 @@
+                    NODE.JS / API
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+     🌐 SITE                         📱 APP
+          │                             │
+   ┌──────┴──────┐              ┌───────┴───────┐
+   │             │              │               │
+ PUBLIC        CLIENT         PUBLIC          CLIENT
+   │             │              │               │
+   ↓             ↓              ↓               ↓
+site público   cliente      app público      cliente logado
