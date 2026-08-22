@@ -477,6 +477,14 @@ router.post('/register-cliente', async (req, res) => {
 // ============================================================================
 // FORGOT PASSWORD
 // ============================================================================
+// helper: formata Date pra "YYYY-MM-DD HH:MM:SS" (formato aceito pelo MySQL), em UTC
+function formatarDatetimeMysql(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return (
+        `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
+        `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`
+    );
+}
 router.post('/forgot-password', async (req, res) => {
 
     try {
