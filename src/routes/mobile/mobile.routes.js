@@ -499,7 +499,7 @@ router.post('/forgot-password', async (req, res) => {
         });
 
         if (!email) {
-            return res.status(400).json({
+            return res.json({   // 🔧 removido .status(400)
                 success: false,
                 message: 'Email é obrigatório',
                 data: { textos }
@@ -536,7 +536,7 @@ router.post('/forgot-password', async (req, res) => {
             'clientes',
             {
                 reset_token: token,
-                reset_token_expira: expira
+                reset_token_expira: formatarDatetimeMysql(expira)   // 🔧 formatado pro MySQL
             },
             { email }
         );
@@ -556,8 +556,9 @@ router.post('/forgot-password', async (req, res) => {
             success: false,
             message: 'Erro ao processar recuperação'
         });
-    }
+    }   
 });
+
 
 router.post('/reset-senha', async (req, res) => {
 
