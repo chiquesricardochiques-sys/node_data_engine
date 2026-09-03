@@ -29,7 +29,6 @@ export function gerarHorariosDisponiveis(grade, agendamentos, intervalo = 30) {
         horarios.push({ hora: minutosParaHora(minuto), disponivel: true, agendamento: null, servicos: null });
     }
 
-    // agendamentos aqui já vem AGREGADO: [{ id, hora, duracao_total, servicos: ['Corte','Barba'] }]
     for (const agendamento of agendamentos) {
         const inicio = horaParaMinutos(agendamento.hora);
         const fim = inicio + Number(agendamento.duracao_total);
@@ -47,7 +46,6 @@ export function gerarHorariosDisponiveis(grade, agendamentos, intervalo = 30) {
     return horarios;
 }
 
-// Agrega linhas [{id, hora, servico_nome, duracao_min}, ...] em [{id, hora, duracao_total, servicos: [...]}]
 function agruparPorAgendamento(linhas) {
     const mapa = new Map();
 
@@ -69,6 +67,27 @@ function agruparPorAgendamento(linhas) {
 }
 
 export async function buscarGradeEHorarios(project_id, id_instancia, profissional_id, data) {
+    // 1. Busca os dados do profissional para checar se ele usa horários
+    const profResult = await goDataEngine.advancedSelect({
+        project_id,
+        id_instancia,
+        table: 'profissionais',
+        select: ['id', 'usa_horarios'],
+        where: { id: Number(profissional_id) },
+        limit: 1
+    });
+
+    const profissional = (profResult.data && profResult.data[0]) || null;
+
+    // 🔧 SE USA_HORARIOS FOR 0: Retornamos um objeto/sinalizador especial
+    if (profissional && Number(profissional.usa_horarios) === 0) {
+        return {
+            usa_horarios: 0,
+            horarios: []
+        };
+    }
+
+    // Caso contrário, segue o fluxo normal de grade de horários
     const diaSemana = obterDiaSemana(data);
 
     const gradeResult = await goDataEngine.advancedSelect({
@@ -81,7 +100,7 @@ export async function buscarGradeEHorarios(project_id, id_instancia, profissiona
     });
 
     const grade = (gradeResult.data && gradeResult.data[0]) || null;
-    if (!grade) return [];
+    if (!grade) return { usa_horarios: 1, horarios: [] };
 
     const linhasResult = await goDataEngine.advancedSelect({
         project_id,
@@ -106,7 +125,6 @@ export async function buscarGradeEHorarios(project_id, id_instancia, profissiona
 
     let horarios = gerarHorariosDisponiveis(grade, agendamentos);
 
-    // 🔧 se a data pesquisada é hoje, remove horários que já passaram
     const hoje = new Date().toISOString().split('T')[0];
     if (data === hoje) {
         const agora = new Date();
@@ -118,5 +136,8 @@ export async function buscarGradeEHorarios(project_id, id_instancia, profissiona
         });
     }
 
-    return horarios;
+    return {
+        usa_horarios: 1,
+        horarios
+    };
 }

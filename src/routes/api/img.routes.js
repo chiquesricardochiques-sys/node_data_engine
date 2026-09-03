@@ -15,13 +15,13 @@ fs.mkdirSync(UPLOAD_TMP_DIR, { recursive: true });
 
 const upload = multer({
   dest: UPLOAD_TMP_DIR,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limite 5MB
   fileFilter: (req, file, cb) => {
     const tiposPermitidos = ["image/jpeg", "image/png", "image/webp"];
     if (tiposPermitidos.includes(file.mimetype)) {
       return cb(null, true);
     }
-    return cb(new Error("Formato de arquivo inválido. Envie apenas JPEG, PNG ou WebP."));
+    return cb(new Error("Formato inválido. Envie apenas JPEG, PNG ou WebP."));
   },
 });
 
@@ -30,7 +30,7 @@ router.put("/update", validateApiKey, upload.single("imagem"), controller.atuali
 router.delete("/delete", validateApiKey, controller.deletarImagem);
 router.get("/url", validateApiKey, controller.urlOtimizada);
 
-// Trata erros disparados pelo Multer (tamanho excedido, tipo inválido)
+// Tratamento de erros do multer
 router.use((err, req, res, next) => {
   if (err) {
     return res.status(400).json({ error: err.message || "Erro no upload da imagem." });

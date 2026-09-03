@@ -1,6 +1,8 @@
 import express from 'express';
 
 import goDataEngine from '../../services/goDataEngine.service.js';
+// no topo, junto dos outros imports
+import admin from '../adminApp/adminApp.routes.js';
 
 const router = express.Router();
 
@@ -477,14 +479,6 @@ router.post('/register-cliente', async (req, res) => {
 // ============================================================================
 // FORGOT PASSWORD
 // ============================================================================
-// helper: formata Date pra "YYYY-MM-DD HH:MM:SS" (formato aceito pelo MySQL), em UTC
-function formatarDatetimeMysql(date) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return (
-        `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
-        `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`
-    );
-}
 router.post('/forgot-password', async (req, res) => {
 
     try {
@@ -724,13 +718,19 @@ router.post('/horarios-disponiveis', async (req, res) => {
         const { profissional_id, data } = req.body;
 
         if (!profissional_id || !data) {
-            return res.json({ success: true, data: { horarios: [] } });
+            return res.json({ success: true, data: { usa_horarios: 1, horarios: [] } });
         }
 
-        // ✅ depois
-        const horarios = await buscarGradeEHorarios(project_id, id_instancia, profissional_id, data);
+        // Agora retorna { usa_horarios, horarios }
+        const resultadoGrade = await buscarGradeEHorarios(project_id, id_instancia, profissional_id, data);
 
-        return res.json({ success: true, data: { horarios } });
+        return res.json({ 
+            success: true, 
+            data: { 
+                usa_horarios: resultadoGrade.usa_horarios,
+                horarios: resultadoGrade.horarios 
+            } 
+        });
 
     } catch (error) {
         console.error('Erro ao buscar horários:', error);
@@ -765,10 +765,9 @@ router.post('/schedule-page', async (req, res) => {
 
         const hoje = new Date().toISOString().split('T')[0];
 
-        let horariosDisponiveis = [];
+        let resultadoGrade = { usa_horarios: 1, horarios: [] };
         if (profissionais.length > 0) {
-            // ✅ depois
-            horariosDisponiveis = await buscarGradeEHorarios(project_id, id_instancia, profissionais[0].id, hoje);
+            resultadoGrade = await buscarGradeEHorarios(project_id, id_instancia, profissionais[0].id, hoje);
         }
 
         return res.json({
@@ -778,7 +777,8 @@ router.post('/schedule-page', async (req, res) => {
                 servicos,
                 profissionais,
                 currentDate: hoje,
-                horariosDisponiveis,
+                usa_horarios: resultadoGrade.usa_horarios,
+                horariosDisponiveis: resultadoGrade.horarios,
                 selectedProfissional: profissionais.length > 0 ? profissionais[0].id : null,
                 selectedData: hoje
             }
@@ -789,7 +789,6 @@ router.post('/schedule-page', async (req, res) => {
         return res.status(500).json({ success: false, message: 'Erro ao carregar tela de agendamento' });
     }
 });
-
 // ============================================================
 // CRIAR AGENDAMENTO (POST /schedule)
 // ============================================================
@@ -797,94 +796,261 @@ router.post('/agendar', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
         const id_instancia = Number(req.body.id_instancia);
-        const { cliente_id, servico_ids, profissional_id, data, hora, observacoes } = req.body;
 
-        // 🔧 servico_ids agora é um array: [1, 2, 3]
-        if (!cliente_id || !Array.isArray(servico_ids) || servico_ids.length === 0 || !profissional_id || !data || !hora) {
-            return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando (selecione ao menos 1 serviço)' });
+        const {
+            cliente_id,
+            servico_ids,
+            profissional_id,
+            data,
+            hora,
+            observacoes
+        } = req.body;
+
+        // =========================================================
+        // 1. VALIDAÇÃO DOS DADOS BÁSICOS
+        // =========================================================
+
+        if (
+            !cliente_id ||
+            !Array.isArray(servico_ids) ||
+            servico_ids.length === 0 ||
+            !profissional_id ||
+            !data
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Dados obrigatórios faltando (selecione ao menos 1 serviço)'
+            });
         }
 
-        const textosResult = await goDataEngine.advancedSelect({
-            project_id, id_instancia, table: 'site_texts', select: ['*'], order_by: 'key_name ASC'
-        });
-        const textos = {};
-        (textosResult.data || []).forEach(t => { textos[t.key_name] = t.value; });
+        // =========================================================
+        // 2. BUSCA O PROFISSIONAL
+        // =========================================================
 
-        // verifica se já existe agendamento pra esse horário
-        const existentesResult = await goDataEngine.advancedSelect({
-            project_id, id_instancia, table: 'agendamentos', select: ['id'],
+        const profissionalResult = await goDataEngine.advancedSelect({
+            project_id,
+            id_instancia,
+            table: 'profissionais',
+            select: ['id', 'usa_horarios'],
             where: {
-                profissional_id: Number(profissional_id),
-                data,
-                hora,
-                status: 'agendado'
+                id: Number(profissional_id)
             },
             limit: 1
         });
 
-        const existe = (existentesResult.data && existentesResult.data.length > 0);
+        const profissional = profissionalResult.data?.[0];
 
-        if (existe) {
-            return res.json({
+        if (!profissional) {
+            return res.status(404).json({
                 success: false,
-                message: 'Horário indisponível, escolha outro!',
-                data: { textos }
+                message: 'Profissional não encontrado.'
             });
         }
 
-        // 1. cria o agendamento (sem servico_id)
-        const insertResult = await goDataEngine.insert(project_id, id_instancia, 'agendamentos', {
-            cliente_id: Number(cliente_id),
-            profissional_id: Number(profissional_id),
-            data,
-            hora,
-            observacoes: observacoes || null
-        });
+        // =========================================================
+        // 3. VERIFICA SE O PROFISSIONAL USA HORÁRIOS
+        // =========================================================
 
-        // pega o id do agendamento recém-criado
-        const agendamento_id = insertResult.id || insertResult.insertId || insertResult.data?.id;
+        const usaHorarios = Number(profissional.usa_horarios);
 
-        if (!agendamento_id) {
-            console.error('Não foi possível obter o id do agendamento criado:', insertResult);
-            return res.status(500).json({ success: false, message: 'Erro ao criar agendamento (sem id de retorno)' });
+        // Se usa horários fixos, hora é obrigatória
+        if (usaHorarios === 1 && !hora) {
+            return res.status(400).json({
+                success: false,
+                message: 'Selecione um horário.'
+            });
         }
 
-        // 2. insere cada serviço vinculado, em paralelo
+        // Se não usa horários fixos, força hora para NULL
+        const horaFinal = usaHorarios === 0 ? null : hora;
+
+        // =========================================================
+        // 4. BUSCA OS TEXTOS
+        // =========================================================
+
+        const textosResult = await goDataEngine.advancedSelect({
+            project_id,
+            id_instancia,
+            table: 'site_texts',
+            select: ['*'],
+            order_by: 'key_name ASC'
+        });
+
+        const textos = {};
+
+        (textosResult.data || []).forEach(t => {
+            textos[t.key_name] = t.value;
+        });
+
+        // =========================================================
+        // 5. VERIFICA CONFLITO DE HORÁRIO
+        // =========================================================
+
+        // Só verifica conflito quando existe horário
+        if (horaFinal) {
+            const existentesResult =
+                await goDataEngine.advancedSelect({
+                    project_id,
+                    id_instancia,
+                    table: 'agendamentos',
+                    select: ['id'],
+                    where: {
+                        profissional_id: Number(profissional_id),
+                        data,
+                        hora: horaFinal,
+                        status: 'agendado'
+                    },
+                    limit: 1
+                });
+
+            const existe =
+                existentesResult.data &&
+                existentesResult.data.length > 0;
+
+            if (existe) {
+                return res.json({
+                    success: false,
+                    message: 'Horário indisponível, escolha outro!',
+                    data: {
+                        textos
+                    }
+                });
+            }
+        }
+
+        // =========================================================
+        // 6. CRIA O AGENDAMENTO
+        // =========================================================
+
+        const insertResult = await goDataEngine.insert(
+            project_id,
+            id_instancia,
+            'agendamentos',
+            {
+                cliente_id: Number(cliente_id),
+                profissional_id: Number(profissional_id),
+                data,
+                hora: horaFinal,
+                observacoes: observacoes || null
+            }
+        );
+
+        // =========================================================
+        // 7. PEGA O ID DO AGENDAMENTO
+        // =========================================================
+
+        const agendamento_id =
+            insertResult.id ||
+            insertResult.insertId ||
+            insertResult.data?.id;
+
+        if (!agendamento_id) {
+            console.error(
+                'Não foi possível obter o id do agendamento criado:',
+                insertResult
+            );
+
+            return res.status(500).json({
+                success: false,
+                message: 'Erro ao criar agendamento (sem id de retorno)'
+            });
+        }
+
+        // =========================================================
+        // 8. VINCULA OS SERVIÇOS
+        // =========================================================
+
         await Promise.all(
             servico_ids.map(servico_id =>
-                goDataEngine.insert(project_id, id_instancia, 'agendamento_servicos', {
-                    agendamento_id: Number(agendamento_id),
-                    servico_id: Number(servico_id)
-                })
+                goDataEngine.insert(
+                    project_id,
+                    id_instancia,
+                    'agendamento_servicos',
+                    {
+                        agendamento_id: Number(agendamento_id),
+                        servico_id: Number(servico_id)
+                    }
+                )
             )
         );
 
-        // recarrega dados atualizados pra tela
+        // =========================================================
+        // 9. RECARREGA SERVIÇOS E PROFISSIONAIS
+        // =========================================================
+
         const servicosResult = await goDataEngine.advancedSelect({
-            project_id, id_instancia, table: 'servicos', select: ['*'], order_by: 'criado_em DESC'
+            project_id,
+            id_instancia,
+            table: 'servicos',
+            select: ['*'],
+            order_by: 'criado_em DESC'
         });
-        const profissionaisResult = await goDataEngine.advancedSelect({
-            project_id, id_instancia, table: 'profissionais', select: ['*'], order_by: 'nome ASC'
-        });
-        const horariosDisponiveis = await buscarGradeEHorarios(project_id, id_instancia, profissional_id, data);
+
+        const profissionaisResult =
+            await goDataEngine.advancedSelect({
+                project_id,
+                id_instancia,
+                table: 'profissionais',
+                select: ['*'],
+                order_by: 'nome ASC'
+            });
+
+        // =========================================================
+        // 10. BUSCA OS HORÁRIOS ATUALIZADOS
+        // =========================================================
+
+        const resultadoGrade =
+            await buscarGradeEHorarios(
+                project_id,
+                id_instancia,
+                profissional_id,
+                data
+            );
+
+        // =========================================================
+        // 11. RESPOSTA
+        // =========================================================
 
         return res.json({
             success: true,
             message: 'Agendamento realizado com sucesso!',
+
             data: {
                 textos,
-                servicos: servicosResult.data || [],
-                profissionais: profissionaisResult.data || [],
+
+                servicos:
+                    servicosResult.data || [],
+
+                profissionais:
+                    profissionaisResult.data || [],
+
                 currentDate: data,
-                selectedProfissional: profissional_id,
-                selectedServicos: servico_ids,
-                horariosDisponiveis
+
+                selectedProfissional:
+                    Number(profissional_id),
+
+                selectedServicos:
+                    servico_ids,
+
+                usa_horarios:
+                    resultadoGrade.usa_horarios,
+
+                horariosDisponiveis:
+                    resultadoGrade.horarios
             }
         });
 
     } catch (error) {
-        console.error('Erro ao criar agendamento:', error);
-        return res.status(500).json({ success: false, message: 'Erro ao criar agendamento' });
+
+        console.error(
+            'Erro ao criar agendamento:',
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: 'Erro ao criar agendamento'
+        });
     }
 });
 
@@ -945,82 +1111,240 @@ router.post('/deletar-agendamento', async (req, res) => {
 
 
 router.post('/my-schedules', async (req, res) => {
+
     try {
+
         const project_id = Number(req.body.project_id);
-        const id_instancia = Number(req.body.id_instancia);
+
+        const id_instancia =
+            Number(req.body.id_instancia);
+
         const { cliente_id } = req.body;
 
+        // =========================================================
+        // 1. VALIDAÇÃO
+        // =========================================================
+
         if (!cliente_id) {
-            return res.status(400).json({ success: false, message: 'cliente_id é obrigatório' });
+
+            return res.status(400).json({
+                success: false,
+                message: 'cliente_id é obrigatório'
+            });
+
         }
 
-        const textosResult = await goDataEngine.advancedSelect({
-            project_id, id_instancia, table: 'site_texts', select: ['*'], order_by: 'key_name ASC'
-        });
+        // =========================================================
+        // 2. TEXTOS
+        // =========================================================
+
+        const textosResult =
+            await goDataEngine.advancedSelect({
+
+                project_id,
+                id_instancia,
+
+                table: 'site_texts',
+
+                select: ['*'],
+
+                order_by: 'key_name ASC'
+
+            });
+
         const textos = {};
-        (textosResult.data || []).forEach(t => { textos[t.key_name] = t.value; });
 
-        // 🔧 agora traz uma linha por serviço (JOIN com agendamento_servicos)
-        const linhasResult = await goDataEngine.advancedSelect({
-            project_id,
-            id_instancia,
-            table: 'agendamentos',
-            alias: 'a',
-            select: [
-                'a.id', 'a.data', 'a.hora', 'a.status', 'a.observacoes',
-                's.nome AS servico_nome', 's.preco AS servico_preco', 's.duracao_min',
-                'p.nome AS profissional'
-            ],
-            joins: [
-                { type: 'INNER', table: 'agendamento_servicos', alias: 'ags', on: 'a.id = ags.agendamento_id' },
-                { type: 'INNER', table: 'servicos', alias: 's', on: 'ags.servico_id = s.id' },
-                { type: 'INNER', table: 'profissionais', alias: 'p', on: 'a.profissional_id = p.id' }
-            ],
-            where: {
-                'a.cliente_id': Number(cliente_id),
-                'a.status': 'agendado'
-            },
-            order_by: 'a.data ASC, a.hora ASC'
+        (textosResult.data || []).forEach(t => {
+
+            textos[t.key_name] =
+                t.value;
+
         });
 
-        const linhas = linhasResult.data || [];
-        const hoje = new Date().toISOString().split('T')[0];
+        // =========================================================
+        // 3. BUSCA AGENDAMENTOS
+        // =========================================================
 
-        // agrupa por agendamento, somando duração/preço e listando os serviços
+        const linhasResult =
+            await goDataEngine.advancedSelect({
+
+                project_id,
+                id_instancia,
+
+                table: 'agendamentos',
+
+                alias: 'a',
+
+                select: [
+
+                    'a.id',
+                    'a.data',
+                    'a.hora',
+                    'a.status',
+                    'a.observacoes',
+
+                    's.nome AS servico_nome',
+                    's.preco AS servico_preco',
+                    's.duracao_min',
+
+                    'p.nome AS profissional'
+
+                ],
+
+                joins: [
+
+                    {
+                        type: 'INNER',
+                        table: 'agendamento_servicos',
+                        alias: 'ags',
+                        on: 'a.id = ags.agendamento_id'
+                    },
+
+                    {
+                        type: 'INNER',
+                        table: 'servicos',
+                        alias: 's',
+                        on: 'ags.servico_id = s.id'
+                    },
+
+                    {
+                        type: 'INNER',
+                        table: 'profissionais',
+                        alias: 'p',
+                        on: 'a.profissional_id = p.id'
+                    }
+
+                ],
+
+                where: {
+
+                    'a.cliente_id':
+                        Number(cliente_id),
+
+                },
+
+                order_by:
+                    'a.data ASC, a.hora ASC'
+
+            });
+
+        // =========================================================
+        // 4. DATA DE HOJE
+        // =========================================================
+
+        const linhas =
+            linhasResult.data || [];
+
+        const hoje =
+            new Date()
+                .toISOString()
+                .split('T')[0];
+
+        // =========================================================
+        // 5. AGRUPA POR AGENDAMENTO
+        // =========================================================
+
         const mapa = new Map();
+
         for (const linha of linhas) {
-            if (linha.data < hoje) continue; // só futuros
+
+            // 🔧 somente hoje e datas futuras
+            if (linha.data < hoje) {
+                continue;
+            }
 
             if (!mapa.has(linha.id)) {
+
                 mapa.set(linha.id, {
+
                     id: linha.id,
+
                     data: linha.data,
+
                     hora: linha.hora,
+
                     status: linha.status,
-                    observacoes: linha.observacoes,
-                    profissional: linha.profissional,
+
+                    observacoes:
+                        linha.observacoes,
+
+                    profissional:
+                        linha.profissional,
+
                     servicos: [],
+
                     duracao_total: 0,
+
                     preco_total: 0
+
                 });
+
             }
-            const item = mapa.get(linha.id);
-            item.servicos.push(linha.servico_nome);
-            item.duracao_total += Number(linha.duracao_min);
-            item.preco_total += Number(linha.servico_preco);
+
+            const item =
+                mapa.get(linha.id);
+
+            item.servicos.push(
+                linha.servico_nome
+            );
+
+            item.duracao_total +=
+                Number(
+                    linha.duracao_min
+                );
+
+            item.preco_total +=
+                Number(
+                    linha.servico_preco
+                );
+
         }
 
-        const agendamentos = Array.from(mapa.values());
+        // =========================================================
+        // 6. RESULTADO
+        // =========================================================
+
+        const agendamentos =
+            Array.from(
+                mapa.values()
+            );
+
+        // =========================================================
+        // 7. RESPOSTA
+        // =========================================================
 
         return res.json({
+
             success: true,
-            data: { textos, agendamentos }
+
+            data: {
+
+                textos,
+
+                agendamentos
+
+            }
+
         });
 
     } catch (error) {
-        console.error('Erro ao listar agendamentos do cliente:', error);
-        return res.status(500).json({ success: false, message: 'Erro ao listar agendamentos' });
+
+        console.error(
+            'Erro ao listar agendamentos do cliente:',
+            error
+        );
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                'Erro ao listar agendamentos'
+
+        });
+
     }
+
 });
 
 // ============================================================
@@ -1088,5 +1412,10 @@ router.post('/atualizar-perfil', async (req, res) => {
     }
 });
 
+
+
+
+// logo depois de `const router = express.Router();`
+router.use(admin);
 
 export default router;
