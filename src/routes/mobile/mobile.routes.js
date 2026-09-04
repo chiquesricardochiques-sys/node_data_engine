@@ -14,6 +14,8 @@ import crypto from 'crypto';
 
 const SALT_ROUNDS = 10;
 
+
+
 router.post('/home', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
@@ -29,13 +31,15 @@ router.post('/home', async (req, res) => {
         });
 
         const textos = {};
-        textosResult.data.forEach(t => {
-            textos[t.key_name] = t.value;
-        });
+        if (textosResult && textosResult.data) {
+            textosResult.data.forEach(t => {
+                textos[t.key_name] = t.value;
+            });
+        }
 
         // 2. BUSCA OS DADOS DA INSTÂNCIA (Endereço, WhatsApp, Logo, etc.)
         const instanciaResult = await goDataEngine.advancedSelect({
-            project_id: 1, // irrelevante com use_prefix
+            project_id, // 👈 Ajustado para usar o project_id correto da requisição
             id_instancia,
             table: 'instancias_projetion',
             alias: 'inst',
@@ -48,7 +52,7 @@ router.post('/home', async (req, res) => {
             limit: 1
         });
 
-        const instancia = (instanciaResult.data || [])[0] || null;
+        const instancia = (instanciaResult && instanciaResult.data) ? instanciaResult.data[0] : null;
 
         // 3. Busca serviços
         const servicosResult = await goDataEngine.advancedSelect({
@@ -84,9 +88,9 @@ router.post('/home', async (req, res) => {
             data: {
                 textos,
                 instancia, // 👈 Enviando os dados de endereço e whatsapp aqui!
-                servicos: servicosResult.data,
-                profissionais: profissionaisResult.data,
-                comentarios: comentariosResult.data
+                servicos: servicosResult?.data || [],
+                profissionais: profissionaisResult?.data || [],
+                comentarios: comentariosResult?.data || []
             }
         });
 
