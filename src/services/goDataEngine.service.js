@@ -128,6 +128,7 @@ async function advancedSelect(options) {
     order_by,
     limit,
     offset,
+    use_prefix,
   } = options;
 
   if (!project_id || !id_instancia || !table) {
@@ -148,6 +149,7 @@ async function advancedSelect(options) {
     order_by: order_by || "",
     limit: limit || 0,
     offset: offset || 0,
+    use_prefix,
   };
   console.log("Payload para advancedSelect:", payload); // Log do payload
   return requestToGo("/data/select", payload);
