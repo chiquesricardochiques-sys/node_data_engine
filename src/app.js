@@ -22,6 +22,7 @@ import path from "path";
 
 import apiRoutes from "./routes/api/index.js";
 import adminRoutes from "./routes/admin/index.js";
+import adminAppRoutes from "./routes/adminApp/adminApp.routes.js";
 import mobileRoutes from "./routes/mobile/mobile.routes.js";
 import routsImg from "./routes/api/routsImg.js";
 
@@ -200,6 +201,8 @@ app.use(
     mobileRoutes
 );
 
+
+app.use('/api/admin-app', adminAppRoutes); 
 
 // ============================================================================
 // IMAGENS
