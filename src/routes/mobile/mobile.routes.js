@@ -15,11 +15,11 @@ import crypto from 'crypto';
 const SALT_ROUNDS = 10;
 
 router.post('/home', async (req, res) => {
-
     try {
         const project_id = Number(req.body.project_id);
         const id_instancia = Number(req.body.id_instancia);
 
+        // 1. Busca os textos do site
         const textosResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -28,12 +28,29 @@ router.post('/home', async (req, res) => {
             order_by: 'key_name ASC'
         });
 
-        // transforma array [{key_name, value}, ...] em objeto {key_name: value, ...}
         const textos = {};
         textosResult.data.forEach(t => {
             textos[t.key_name] = t.value;
         });
 
+        // 2. BUSCA OS DADOS DA INSTÂNCIA (Endereço, WhatsApp, Logo, etc.)
+        const instanciaResult = await goDataEngine.advancedSelect({
+            project_id: 1, // irrelevante com use_prefix
+            id_instancia,
+            table: 'instancias_projetion',
+            alias: 'inst',
+            select: [
+                'id', 'name', 'endereco', 'cidade', 'estado', 'cep',
+                'whatsapp', 'logo_url'
+            ],
+            where: { id: id_instancia },
+            use_prefix: 1,
+            limit: 1
+        });
+
+        const instancia = (instanciaResult.data || [])[0] || null;
+
+        // 3. Busca serviços
         const servicosResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -42,6 +59,7 @@ router.post('/home', async (req, res) => {
             order_by: 'criado_em DESC'
         });
 
+        // 4. Busca profissionais
         const profissionaisResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -50,6 +68,7 @@ router.post('/home', async (req, res) => {
             order_by: 'nome ASC'
         });
 
+        // 5. Busca comentários
         const comentariosResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -59,10 +78,12 @@ router.post('/home', async (req, res) => {
             order_by: 'id DESC'
         });
 
+        // Retorna tudo unificado para o App Cliente
         return res.json({
             success: true,
             data: {
-                textos, // já vem como objeto chave/valor
+                textos,
+                instancia, // 👈 Enviando os dados de endereço e whatsapp aqui!
                 servicos: servicosResult.data,
                 profissionais: profissionaisResult.data,
                 comentarios: comentariosResult.data
@@ -77,7 +98,6 @@ router.post('/home', async (req, res) => {
         });
     }
 });
-
 
 // rota logim
 router.post('/login', async (req, res) => {
