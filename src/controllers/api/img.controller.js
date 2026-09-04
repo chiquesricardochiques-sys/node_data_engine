@@ -1,14 +1,12 @@
+import fs from "fs";
 import * as servicesImg from "../../services/img/servicesImg.js";
 
-/**
- * POST /upload
- * Recebe a imagem (multer -> req.file) + dados de organização da pasta.
- * Sobe pro Cloudinary e retorna a url/public_id. Não mexe em banco.
- *
- * Body esperado (multipart/form-data):
- *  - imagem (arquivo)
- *  - project_code, id_instancia, table
- */
+function apagarArquivoTempSeExiste(filePath) {
+  if (filePath && fs.existsSync(filePath)) {
+    fs.unlink(filePath, () => {});
+  }
+}
+
 export async function uploadImagem(req, res) {
   try {
     if (!req.file) {
@@ -18,9 +16,11 @@ export async function uploadImagem(req, res) {
     const { project_code, id_instancia, table } = req.body;
 
     if (!project_code || !id_instancia || !table) {
+      apagarArquivoTempSeExiste(req.file.path);
       return res.status(400).json({ error: "project_code, id_instancia e table são obrigatórios." });
     }
 
+    // O próprio servicesImg.uploadImagem se encarrega de deletar o req.file.path no finally dele
     const resultado = await servicesImg.uploadImagem({
       filePath: req.file.path,
       project_code,
@@ -30,21 +30,12 @@ export async function uploadImagem(req, res) {
 
     return res.status(201).json(resultado);
   } catch (error) {
+    apagarArquivoTempSeExiste(req.file?.path);
     console.error("[img.controller] uploadImagem:", error.message);
     return res.status(500).json({ error: "Erro ao enviar imagem." });
   }
 }
 
-/**
- * PUT /update
- * Substitui uma imagem existente (sobe a nova, apaga a antiga do Cloudinary).
- * Retorna a nova url/public_id — quem chamou decide o que fazer com o registro antigo.
- *
- * Body esperado (multipart/form-data):
- *  - imagem (arquivo)
- *  - project_code, id_instancia, table
- *  - public_id_antigo
- */
 export async function atualizarImagem(req, res) {
   try {
     if (!req.file) {
@@ -54,6 +45,7 @@ export async function atualizarImagem(req, res) {
     const { project_code, id_instancia, table, public_id_antigo } = req.body;
 
     if (!project_code || !id_instancia || !table) {
+      apagarArquivoTempSeExiste(req.file.path);
       return res.status(400).json({ error: "project_code, id_instancia e table são obrigatórios." });
     }
 
@@ -67,18 +59,12 @@ export async function atualizarImagem(req, res) {
 
     return res.status(200).json(resultado);
   } catch (error) {
+    apagarArquivoTempSeExiste(req.file?.path);
     console.error("[img.controller] atualizarImagem:", error.message);
     return res.status(500).json({ error: "Erro ao atualizar imagem." });
   }
 }
 
-/**
- * DELETE /delete
- * Remove a imagem do Cloudinary pelo public_id. Não mexe em banco.
- *
- * Body esperado (JSON):
- *  - public_id
- */
 export async function deletarImagem(req, res) {
   try {
     const { public_id } = req.body;
@@ -96,10 +82,6 @@ export async function deletarImagem(req, res) {
   }
 }
 
-/**
- * GET /url?public_id=...&width=...&height=...&crop=...
- * Gera uma url otimizada/transformada em cima do public_id.
- */
 export function urlOtimizada(req, res) {
   try {
     const { public_id, width, height, crop } = req.query;
