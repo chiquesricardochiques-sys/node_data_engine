@@ -650,27 +650,39 @@ router.post('/reset-senha', async (req, res) => {
         });
     }
 });
-
 router.post('/client-home', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
         const id_instancia = Number(req.body.id_instancia);
         const { cliente_id } = req.body;
-
         if (!cliente_id) {
             return res.status(400).json({ success: false, message: 'cliente_id é obrigatório' });
         }
-
         const textosResult = await goDataEngine.advancedSelect({
             project_id, id_instancia, table: 'site_texts', select: ['*'], order_by: 'key_name ASC'
         });
         const textos = {};
         (textosResult.data || []).forEach(t => { textos[t.key_name] = t.value; });
 
+        // 🔧 ADICIONADO: busca dos dados da instância (endereço, whatsapp, etc.)
+        const instanciaResult = await goDataEngine.advancedSelect({
+            project_id,
+            id_instancia,
+            table: 'instancias_projetion',
+            alias: 'inst',
+            select: [
+                'id', 'name', 'endereco', 'cidade', 'estado', 'cep',
+                'whatsapp', 'logo_url'
+            ],
+            where: { id: id_instancia },
+            use_prefix: 1,
+            limit: 1
+        });
+        const instancia = (instanciaResult.data && instanciaResult.data[0]) || null;
+
         const profissionaisResult = await goDataEngine.advancedSelect({
             project_id, id_instancia, table: 'profissionais', select: ['*'], where: { ativo: 1 }, order_by: 'nome ASC'
         });
-
         // 🔧 mesmo JOIN agregado do /my-schedules, mas só o próximo
         const linhasResult = await goDataEngine.advancedSelect({
             project_id,
@@ -692,10 +704,8 @@ router.post('/client-home', async (req, res) => {
             },
             order_by: 'a.data ASC, a.hora ASC'
         });
-
         const linhas = linhasResult.data || [];
         const hoje = new Date().toISOString().split('T')[0];
-
         const mapa = new Map();
         for (const linha of linhas) {
             if (linha.data < hoje) continue;
@@ -710,19 +720,17 @@ router.post('/client-home', async (req, res) => {
             }
             mapa.get(linha.id).servicos.push(linha.servico_nome);
         }
-
         const futuros = Array.from(mapa.values());
         const proximoAgendamento = futuros.length > 0 ? futuros[0] : null;
-
         return res.json({
             success: true,
             data: {
                 textos,
+                instancia, // 🔧 ADICIONADO aqui
                 profissionais: profissionaisResult.data || [],
                 proximoAgendamento
             }
         });
-
     } catch (error) {
         console.error('Erro ao carregar home do cliente:', error);
         return res.status(500).json({ success: false, message: 'Erro ao carregar dados da home do cliente' });
