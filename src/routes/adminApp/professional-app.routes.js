@@ -184,16 +184,16 @@ router.post('/professional-app/alterar-status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Status inválido' });
         }
 
-        await goDataEngine.update({
+        await goDataEngine.update(
             project_id,
             id_instancia,
-            table: 'agendamentos',
-            data: { status: statusFormatado },
-            where: {
+            'agendamentos',
+            { status: statusFormatado },
+            {
                 id: Number(agendamento_id),
                 profissional_id: Number(profissional_id)
             }
-        });
+        );
 
         return res.json({ success: true, message: 'Status atualizado com sucesso!' });
 
