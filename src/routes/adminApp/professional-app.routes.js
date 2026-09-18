@@ -89,18 +89,20 @@ router.post('/professional-app/agenda', async (req, res) => {
 
         const dataConsulta = data || hojeSQL();
 
-        // 1. Buscar se o profissional usa horários ou não
+        // 1. Buscar se o profissional usa horários E o percentual de comissão dele
         const profResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
             table: 'profissionais',
-            select: ['usa_horarios'],
+            select: ['usa_horarios', 'percentual_comissao'], // <--- ADICIONADO percentual_comissao
             where: { id: Number(profissional_id) },
             limit: 1
         });
 
         const profData = (profResult.data || [])[0];
         const usaHorarios = profData && profData.usa_horarios !== undefined ? Number(profData.usa_horarios) : 1;
+        // Pega a comissão do profissional (caso o nome da coluna no banco seja diferente, ajuste aqui, ex: comissao)
+        const percentualComissaoProfissional = profData && profData.percentual_comissao !== undefined ? Number(profData.percentual_comissao) : 0;
 
         // 2. Buscar agendamentos
         const linhasResult = await goDataEngine.advancedSelect({
@@ -130,6 +132,21 @@ router.post('/professional-app/agenda', async (req, res) => {
 
         for (const linha of linhas) {
             if (!mapa.has(linha.id)) {
+                const telefone = linha.cliente_telefone || null;
+                const nomeCliente = linha.cliente_nome || 'N/A';
+
+                const gerarLinkWhatsApp = (tel, nome) => {
+                    if (!tel) return null;
+                    const numeros = tel.replace(/\D/g, '');
+                    if (!numeros) return null;
+                    let telFormatado = numeros;
+                    if (telFormatado.length === 10 || telFormatado.length === 11) {
+                        telFormatado = '55' + telFormatado;
+                    }
+                    const msg = encodeURIComponent(`Olá ${nome}, tudo bem?`);
+                    return `https://wa.me/${telFormatado}?text=${msg}`;
+                };
+
                 mapa.set(linha.id, {
                     id: linha.id,
                     data: dataConsulta,
@@ -137,11 +154,13 @@ router.post('/professional-app/agenda', async (req, res) => {
                     usa_horarios: usaHorarios,
                     status: String(linha.status || '').toLowerCase().trim(),
                     observacoes: linha.observacoes,
-                    cliente: linha.cliente_nome || 'N/A',
-                    cliente_telefone: linha.cliente_telefone || null,
+                    cliente: nomeCliente,
+                    cliente_telefone: telefone,
+                    whatsapp_link: gerarLinkWhatsApp(telefone, nomeCliente),
                     servicos: [],
                     duracao_total: 0,
-                    preco_total: 0
+                    preco_total: 0,
+                    percentual_comissao: percentualComissaoProfissional // <--- ADICIONADO AQUI PARA ENVIAR AO APP
                 });
             }
             const item = mapa.get(linha.id);
@@ -164,9 +183,8 @@ router.post('/professional-app/agenda', async (req, res) => {
         return res.status(500).json({ success: false, message: 'Erro ao buscar agenda' });
     }
 });
-
 // ============================================================================
-// ATUALIZAR STATUS DO AGENDAMENTO
+// ATUALIZAR STATUS DO AGENDAMENTO (Salvando a porcentagem da comissão)
 // ============================================================================
 router.post('/professional-app/alterar-status', async (req, res) => {
     try {
@@ -184,18 +202,45 @@ router.post('/professional-app/alterar-status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Status inválido' });
         }
 
+        // Objeto base que será atualizado no banco
+        let dadosAtualizacao = { status: statusFormatado };
+
+        // Se o status for 'andamento', buscamos a comissão atual do profissional
+        if (statusFormatado === 'andamento') {
+            const profResult = await goDataEngine.advancedSelect({
+                project_id,
+                id_instancia,
+                table: 'profissionais',
+                select: ['tipo_remuneracao', 'percentual_comissao', 'salario_fixo'],
+                where: { id: Number(profissional_id) },
+                limit: 1
+            });
+            const prof = (profResult.data || [])[0];
+            
+            if (prof && prof.percentual_comissao !== undefined) {
+                // Insere a porcentagem no objeto que vai para a tabela agendamentos
+                // (Certifique-se de que a coluna se chama 'percentual_comissao' na sua tabela agendamentos)
+                dadosAtualizacao.percentual_comissao = prof.percentual_comissao;
+            }
+        }
+
+        // Executa o update com a assinatura correta do goDataEngine
         await goDataEngine.update(
-            project_id,
-            id_instancia,
-            'agendamentos',
-            { status: statusFormatado },
-            {
+            project_id,                     // 1º: project_id
+            id_instancia,                   // 2º: id_instancia
+            'agendamentos',                 // 3º: table
+            dadosAtualizacao,               // 4º: data (agora contendo o status e a comissão)
+            {                               // 5º: where
                 id: Number(agendamento_id),
                 profissional_id: Number(profissional_id)
             }
         );
 
-        return res.json({ success: true, message: 'Status atualizado com sucesso!' });
+        return res.json({ 
+            success: true, 
+            message: 'Status e comissão atualizados com sucesso!',
+            data: { novo_status: statusFormatado }
+        });
 
     } catch (error) {
         console.error('❌ Erro ao alterar status no banco:', error);
@@ -476,7 +521,7 @@ router.post('/professional-app/perfil', async (req, res) => {
 });
 
 // ============================================================================
-// RELATÓRIO DE FATURAMENTO E REMUNERAÇÃO DO PROFISSIONAL
+// RELATÓRIO DE FATURAMENTO E REMUNERAÇÃO DO PROFISSIONAL (Baseado no Agendamento)
 // ============================================================================
 router.post('/professional-app/faturamento', async (req, res) => {
     try {
@@ -487,12 +532,12 @@ router.post('/professional-app/faturamento', async (req, res) => {
             return res.status(400).json({ success: false, message: 'profissional_id, ano e mes são obrigatórios' });
         }
 
-        // 1. Buscar dados cadastrais do profissional
+        // 1. Buscar dados cadastrais do profissional (apenas para exibição de nome/frequência se necessário)
         const profResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
             table: 'profissionais',
-            select: ['id', 'nome', 'tipo_remuneracao', 'percentual_comissao', 'salario_fixo', 'frequencia_pagamento'],
+            select: ['id', 'nome', 'frequencia_pagamento'],
             where: { id: Number(profissional_id) },
             limit: 1
         });
@@ -510,14 +555,15 @@ router.post('/professional-app/faturamento', async (req, res) => {
         const quantidadeDiasMes = ultimoDiaData.getDate();
         const dataFim = `${anoNum}-${String(mesNum).padStart(2, '0')}-${String(quantidadeDiasMes).padStart(2, '0')}`;
 
-        // 2. Buscar agendamentos do profissional no período selecionado
+        // 2. Buscar agendamentos do profissional com os dados de remuneração individuais da tabela agendamentos
         const linhasResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
             table: 'agendamentos',
             alias: 'a',
             select: [
-                'a.id', 'a.data', 'a.status',
+                'a.id', 'a.data', 'a.status', 'a.tipo_remuneracao', 
+                'a.percentual_comissao', 'a.salario_fixo',
                 's.preco AS servico_preco'
             ],
             joins: [
@@ -541,6 +587,9 @@ router.post('/professional-app/faturamento', async (req, res) => {
                         id: linha.id,
                         data: linha.data,
                         status: linha.status,
+                        tipo_remuneracao: linha.tipo_remuneracao || 'comissao',
+                        percentual_comissao: Number(linha.percentual_comissao || 0),
+                        salario_fixo: Number(linha.salario_fixo || 0),
                         preco_total: 0
                     });
                 }
@@ -552,36 +601,44 @@ router.post('/professional-app/faturamento', async (req, res) => {
         const agendamentosMes = Array.from(mapaAgendamentos.values());
 
         let faturamentoTotal = 0;
+        let valorAReceberTotal = 0;
+
+        // Armazenamos uma referência para exibir na tela o tipo predominante do mês ou padrão
+        let tipoRemuneracaoExibicao = 'comissao';
+        let comissaoExibicao = 0;
+        let salarioFixoExibicao = 0;
+
         for (const ag of agendamentosMes) {
             faturamentoTotal += ag.preco_total;
+
+            tipoRemuneracaoExibicao = ag.tipo_remuneracao;
+            comissaoExibicao = ag.percentual_comissao;
+            salarioFixoExibicao = ag.salario_fixo;
+
+            let valorAgendamentoLiquido = 0;
+            if (ag.tipo_remuneracao === 'comissao') {
+                valorAgendamentoLiquido = (ag.preco_total * ag.percentual_comissao) / 100;
+            } else if (ag.tipo_remuneracao === 'clt') {
+                valorAgendamentoLiquido = ag.salario_fixo;
+            } else if (ag.tipo_remuneracao === 'hibrido') {
+                const comissaoCalc = (ag.preco_total * ag.percentual_comissao) / 100;
+                valorAgendamentoLiquido = ag.salario_fixo + comissaoCalc;
+            }
+
+            valorAReceberTotal += valorAgendamentoLiquido;
         }
 
         const totalAtendimentos = agendamentosMes.length;
-
-        const tipoRemuneracao = profissional.tipo_remuneracao || 'comissao';
-        const percentualComissao = Number(profissional.percentual_comissao || 0);
-        const salarioFixo = Number(profissional.salario_fixo || 0);
-
-        let valorAReceber = 0;
-
-        if (tipoRemuneracao === 'comissao') {
-            valorAReceber = (faturamentoTotal * percentualComissao) / 100;
-        } else if (tipoRemuneracao === 'clt') {
-            valorAReceber = salarioFixo;
-        } else if (tipoRemuneracao === 'hibrido') {
-            const comissaoCalculada = (faturamentoTotal * percentualComissao) / 100;
-            valorAReceber = salarioFixo + comissaoCalculada;
-        }
 
         return res.json({
             success: true,
             data: {
                 profissional: {
                     nome: profissional.nome,
-                    tipo_remuneracao: tipoRemuneracao,
+                    tipo_remuneracao: tipoRemuneracaoExibicao,
                     frequencia_pagamento: profissional.frequencia_pagamento || 'mensal',
-                    percentual_comissao: percentualComissao,
-                    salario_fixo: salarioFixo
+                    percentual_comissao: comissaoExibicao,
+                    salario_fixo: salarioFixoExibicao
                 },
                 periodo: {
                     ano: anoNum,
@@ -593,7 +650,7 @@ router.post('/professional-app/faturamento', async (req, res) => {
                 estatisticas: {
                     total_atendimentos: totalAtendimentos,
                     faturamento_total: Number(faturamentoTotal.toFixed(2)),
-                    valor_a_receber: Number(valorAReceber.toFixed(2))
+                    valor_a_receber: Number(valorAReceberTotal.toFixed(2))
                 }
             }
         });
@@ -603,5 +660,4 @@ router.post('/professional-app/faturamento', async (req, res) => {
         return res.status(500).json({ success: false, message: 'Erro ao calcular faturamento' });
     }
 });
-
 export default router;

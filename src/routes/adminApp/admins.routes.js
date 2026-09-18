@@ -139,6 +139,40 @@ router.post('/admins/delete', async (req, res) => {
     }
 });
 
+router.post('/admins/perfil-instancia', async (req, res) => {
+    try {
+        const { id_instancia } = getTenantIds(req);
+
+        const result = await goDataEngine.advancedSelect({
+            project_id: 1, // irrelevante aqui, use_prefix ignora
+            id_instancia,
+            table: 'instancias_projetion',
+            alias: 'inst',
+            select: [
+                'id', 'project_id', 'client_name', 'email', 'phone',
+                'name', 'code', 'description', 'status',
+                'endereco', 'cidade', 'estado', 'cep',
+                'whatsapp', 'logo_url'
+            ],
+            where: { id: id_instancia },
+            use_prefix: 1, // 🔧 tabela núcleo, sem prefixo de projeto e sem filtro automático id_instancia
+            limit: 1
+        });
+
+        const instancia = (result.data || [])[0] || null;
+
+        if (!instancia) {
+            return res.status(404).json({ success: false, message: 'Instância não encontrada' });
+        }
+
+        return res.json({ success: true, data: { instancia } });
+
+    } catch (error) {
+        console.error('Erro ao buscar perfil da instância:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao buscar perfil da instância' });
+    }
+});
+
 router.post('/instancia/perfil', async (req, res) => {
     try {
         const { id_instancia } = getTenantIds(req);

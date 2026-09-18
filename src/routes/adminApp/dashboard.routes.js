@@ -7,45 +7,52 @@ const router = express.Router();
 function getTenantIds(req) {
     const project_id = Number(req.body.project_id || req.query.project_id || process.env.PROJECT_ID) || 1;
     const id_instancia = Number(req.body.instance_id || req.body.id_instancia || req.query.instance_id || req.query.id_instancia || process.env.ID_INSTANCIA) || 1;
-    
+
     return { project_id, id_instancia };
 }
 
 // ============================================================================
-// HELPERS DE DATA
+// HELPERS DE DATA — sempre no fuso de Brasília, nunca no fuso do servidor
 // ============================================================================
+
+// 🔧 "Hoje" calculado direto no fuso America/Sao_Paulo, não em UTC
 function hojeSQL() {
-    return new Date().toISOString().split('T')[0];
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date()); // já sai como 'YYYY-MM-DD'
 }
 
-function toSQL(date) {
-    return date.toISOString().split('T')[0];
+// Soma/subtrai dias em cima de uma data SQL (string), usando UTC só como
+// calculadora de calendário — não tem instante real nem fuso envolvido aqui
+function somarDias(dataSQL, dias) {
+    const [y, m, d] = dataSQL.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + dias);
+    return dt.toISOString().split('T')[0];
 }
 
-// Retorna { inicio, fim } da semana (segunda a domingo) que contém a data passada
-function semanaDe(dataBase) {
-    const diaSemana = dataBase.getDay() || 7; // domingo = 7
-    const inicio = new Date(dataBase);
-    inicio.setDate(dataBase.getDate() - diaSemana + 1);
-
-    const fim = new Date(inicio);
-    fim.setDate(inicio.getDate() + 6);
-
-    return { inicio: toSQL(inicio), fim: toSQL(fim) };
+// Últimos 7 dias terminando hoje (hoje - 6 dias até hoje)
+function ultimos7Dias(hoje) {
+    return { inicio: somarDias(hoje, -6), fim: hoje };
 }
 
-function mesAtual() {
-    const hoje = new Date();
-    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-    return { inicio: toSQL(inicio), fim: toSQL(fim) };
+// Mês calendário inteiro que contém "hoje"
+function mesAtual(hoje) {
+    const [y, m] = hoje.split('-').map(Number);
+    const inicio = `${y}-${String(m).padStart(2, '0')}-01`;
+    const ultimoDia = new Date(Date.UTC(y, m, 0)).getUTCDate(); // dia 0 do mês seguinte = último dia deste mês
+    const fim = `${y}-${String(m).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+    return { inicio, fim };
 }
 
 // ============================================================================
-// CONTAGENS BÁSICAS
+// CONTAGEM — AGENDAMENTOS NÃO CANCELADOS (agendado + andamento + concluido)
 // ============================================================================
-async function contarPorStatusEData(project_id, id_instancia, status, dataExata = null, intervalo = null, profissional_id = null) {
-    const where = { status };
+async function contarNaoCancelados(project_id, id_instancia, { dataExata = null, intervalo = null, profissional_id = null } = {}) {
+    const where = {};
 
     if (profissional_id) {
         where.profissional_id = Number(profissional_id);
@@ -55,7 +62,33 @@ async function contarPorStatusEData(project_id, id_instancia, status, dataExata 
         where.data = dataExata;
     }
 
-    // 🔧 SEMPRE via advancedSelect agora — nunca mais chama aggregate()
+    const result = await goDataEngine.advancedSelect({
+        project_id,
+        id_instancia,
+        table: 'agendamentos',
+        select: ['id', 'data', 'status'],
+        where
+    });
+
+    let linhas = (result.data || []).filter(a => a.status !== 'cancelado');
+
+    if (intervalo) {
+        linhas = linhas.filter(a => a.data >= intervalo.inicio && a.data <= intervalo.fim);
+    }
+
+    return linhas.length;
+}
+
+// ============================================================================
+// CONTAGEM — SÓ CANCELADOS
+// ============================================================================
+async function contarCancelados(project_id, id_instancia, { dataExata = null, intervalo = null } = {}) {
+    const where = { status: 'cancelado' };
+
+    if (dataExata) {
+        where.data = dataExata;
+    }
+
     const result = await goDataEngine.advancedSelect({
         project_id,
         id_instancia,
@@ -74,9 +107,9 @@ async function contarPorStatusEData(project_id, id_instancia, status, dataExata 
 }
 
 // ============================================================================
-// POR PROFISSIONAL
+// POR PROFISSIONAL — agendamentos de hoje e da semana
 // ============================================================================
-async function contarPorProfissional(project_id, id_instancia, hoje, semanaAtual) {
+async function contarPorProfissional(project_id, id_instancia, hoje, ultimos7) {
     const profResult = await goDataEngine.advancedSelect({
         project_id,
         id_instancia,
@@ -91,8 +124,8 @@ async function contarPorProfissional(project_id, id_instancia, hoje, semanaAtual
     const resultado = [];
 
     for (const prof of profissionais) {
-        const totalHoje = await contarPorStatusEData(project_id, id_instancia, 'agendado', hoje, null, prof.id);
-        const totalSemana = await contarPorStatusEData(project_id, id_instancia, 'agendado', null, semanaAtual, prof.id);
+        const totalHoje = await contarNaoCancelados(project_id, id_instancia, { dataExata: hoje, profissional_id: prof.id });
+        const totalSemana = await contarNaoCancelados(project_id, id_instancia, { intervalo: ultimos7, profissional_id: prof.id });
 
         resultado.push({
             profissional_id: prof.id,
@@ -111,39 +144,26 @@ async function contarPorProfissional(project_id, id_instancia, hoje, semanaAtual
 router.post('/dashboard/summary', async (req, res) => {
     try {
         const { project_id, id_instancia } = getTenantIds(req);
-        
+
         const hoje = hojeSQL();
-        const dataBase = new Date();
-
-        const semanaAtual = semanaDe(dataBase);
-
-        const semanaPassadaBase = new Date(dataBase);
-        semanaPassadaBase.setDate(dataBase.getDate() - 7);
-        const semanaAnterior = semanaDe(semanaPassadaBase);
-
-        const mes = mesAtual();
+        const ultimos7 = ultimos7Dias(hoje);
+        const mes = mesAtual(hoje);
 
         const [
             totalHoje,
             totalSemana,
             totalMes,
-            totalSemanaAnterior,
             canceladosHoje,
             canceladosSemana,
             porProfissional
         ] = await Promise.all([
-            contarPorStatusEData(project_id, id_instancia, 'agendado', hoje),
-            contarPorStatusEData(project_id, id_instancia, 'agendado', null, semanaAtual),
-            contarPorStatusEData(project_id, id_instancia, 'agendado', null, mes),
-            contarPorStatusEData(project_id, id_instancia, 'agendado', null, semanaAnterior),
-            contarPorStatusEData(project_id, id_instancia, 'cancelado', hoje),
-            contarPorStatusEData(project_id, id_instancia, 'cancelado', null, semanaAtual),
-            contarPorProfissional(project_id, id_instancia, hoje, semanaAtual)
+            contarNaoCancelados(project_id, id_instancia, { dataExata: hoje }),
+            contarNaoCancelados(project_id, id_instancia, { intervalo: ultimos7 }),
+            contarNaoCancelados(project_id, id_instancia, { intervalo: mes }),
+            contarCancelados(project_id, id_instancia, { dataExata: hoje }),
+            contarCancelados(project_id, id_instancia, { intervalo: ultimos7 }),
+            contarPorProfissional(project_id, id_instancia, hoje, ultimos7)
         ]);
-
-        const variacaoPercentual = totalSemanaAnterior > 0
-            ? Number((((totalSemana - totalSemanaAnterior) / totalSemanaAnterior) * 100).toFixed(1))
-            : (totalSemana > 0 ? 100 : 0);
 
         return res.json({
             success: true,
@@ -151,10 +171,6 @@ router.post('/dashboard/summary', async (req, res) => {
                 totalHoje,
                 totalSemana,
                 totalMes,
-                comparativo: {
-                    semanaAnterior: totalSemanaAnterior,
-                    variacaoPercentual
-                },
                 canceladosHoje,
                 canceladosSemana,
                 porProfissional

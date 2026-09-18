@@ -14,8 +14,6 @@ import crypto from 'crypto';
 
 const SALT_ROUNDS = 10;
 
-
-
 router.post('/home', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
@@ -31,15 +29,13 @@ router.post('/home', async (req, res) => {
         });
 
         const textos = {};
-        if (textosResult && textosResult.data) {
-            textosResult.data.forEach(t => {
-                textos[t.key_name] = t.value;
-            });
-        }
+        textosResult.data.forEach(t => {
+            textos[t.key_name] = t.value;
+        });
 
         // 2. BUSCA OS DADOS DA INSTÂNCIA (Endereço, WhatsApp, Logo, etc.)
         const instanciaResult = await goDataEngine.advancedSelect({
-            project_id, // 👈 Ajustado para usar o project_id correto da requisição
+            project_id: 1, // irrelevante com use_prefix
             id_instancia,
             table: 'instancias_projetion',
             alias: 'inst',
@@ -52,7 +48,7 @@ router.post('/home', async (req, res) => {
             limit: 1
         });
 
-        const instancia = (instanciaResult && instanciaResult.data) ? instanciaResult.data[0] : null;
+        const instancia = (instanciaResult.data || [])[0] || null;
 
         // 3. Busca serviços
         const servicosResult = await goDataEngine.advancedSelect({
@@ -88,9 +84,9 @@ router.post('/home', async (req, res) => {
             data: {
                 textos,
                 instancia, // 👈 Enviando os dados de endereço e whatsapp aqui!
-                servicos: servicosResult?.data || [],
-                profissionais: profissionaisResult?.data || [],
-                comentarios: comentariosResult?.data || []
+                servicos: servicosResult.data,
+                profissionais: profissionaisResult.data,
+                comentarios: comentariosResult.data
             }
         });
 
@@ -102,6 +98,7 @@ router.post('/home', async (req, res) => {
         });
     }
 });
+
 
 // rota logim
 router.post('/login', async (req, res) => {
@@ -650,23 +647,26 @@ router.post('/reset-senha', async (req, res) => {
         });
     }
 });
+
 router.post('/client-home', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
         const id_instancia = Number(req.body.id_instancia);
         const { cliente_id } = req.body;
+
         if (!cliente_id) {
             return res.status(400).json({ success: false, message: 'cliente_id é obrigatório' });
         }
+
         const textosResult = await goDataEngine.advancedSelect({
             project_id, id_instancia, table: 'site_texts', select: ['*'], order_by: 'key_name ASC'
         });
         const textos = {};
         (textosResult.data || []).forEach(t => { textos[t.key_name] = t.value; });
 
-        // 🔧 ADICIONADO: busca dos dados da instância (endereço, whatsapp, etc.)
+        // 🔧 ADICIONADO — mesma busca de instância usada em /home
         const instanciaResult = await goDataEngine.advancedSelect({
-            project_id,
+            project_id: 1, // irrelevante com use_prefix
             id_instancia,
             table: 'instancias_projetion',
             alias: 'inst',
@@ -678,12 +678,14 @@ router.post('/client-home', async (req, res) => {
             use_prefix: 1,
             limit: 1
         });
-        const instancia = (instanciaResult.data && instanciaResult.data[0]) || null;
+
+        const instancia = (instanciaResult.data || [])[0] || null;
 
         const profissionaisResult = await goDataEngine.advancedSelect({
             project_id, id_instancia, table: 'profissionais', select: ['*'], where: { ativo: 1 }, order_by: 'nome ASC'
         });
-        // 🔧 mesmo JOIN agregado do /my-schedules, mas só o próximo
+
+        // mesmo JOIN agregado do /my-schedules, mas só o próximo
         const linhasResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -704,8 +706,10 @@ router.post('/client-home', async (req, res) => {
             },
             order_by: 'a.data ASC, a.hora ASC'
         });
+
         const linhas = linhasResult.data || [];
         const hoje = new Date().toISOString().split('T')[0];
+
         const mapa = new Map();
         for (const linha of linhas) {
             if (linha.data < hoje) continue;
@@ -720,23 +724,25 @@ router.post('/client-home', async (req, res) => {
             }
             mapa.get(linha.id).servicos.push(linha.servico_nome);
         }
+
         const futuros = Array.from(mapa.values());
         const proximoAgendamento = futuros.length > 0 ? futuros[0] : null;
+
         return res.json({
             success: true,
             data: {
                 textos,
-                instancia, // 🔧 ADICIONADO aqui
+                instancia, // 🔧 ADICIONADO
                 profissionais: profissionaisResult.data || [],
                 proximoAgendamento
             }
         });
+
     } catch (error) {
         console.error('Erro ao carregar home do cliente:', error);
         return res.status(500).json({ success: false, message: 'Erro ao carregar dados da home do cliente' });
     }
 });
-
 
 
 import { buscarGradeEHorarios } from '../../utils/schedule.utils.js';
@@ -1086,6 +1092,60 @@ router.post('/agendar', async (req, res) => {
     }
 });
 
+// router.post('/deletar-agendamento', async (req, res) => {
+//     try {
+//         const project_id = Number(req.body.project_id);
+//         const id_instancia = Number(req.body.id_instancia);
+//         const { agendamento_id, cliente_id } = req.body;
+
+//         if (!agendamento_id || !cliente_id) {
+//             return res.status(400).json({ success: false, message: 'agendamento_id e cliente_id são obrigatórios' });
+//         }
+
+//         const agendamentoResult = await goDataEngine.advancedSelect({
+//             project_id,
+//             id_instancia,
+//             table: 'agendamentos',
+//             select: ['*'],
+//             where: { id: Number(agendamento_id) },
+//             limit: 1
+//         });
+
+//         const agendamento = (agendamentoResult.data && agendamentoResult.data[0]) || null;
+
+//         if (!agendamento || agendamento.cliente_id !== Number(cliente_id)) {
+//             return res.json({
+//                 success: false,
+//                 message: 'Agendamento não encontrado ou não permitido'
+//             });
+//         }
+
+//         // 🔧 goDataEngine.delete, não goDataEngine.deleteRecords
+//         await goDataEngine.delete(
+//             project_id,
+//             id_instancia,
+//             'agendamento_servicos',
+//             { agendamento_id: Number(agendamento_id) }
+//         );
+
+//         await goDataEngine.delete(
+//             project_id,
+//             id_instancia,
+//             'agendamentos',
+//             { id: Number(agendamento_id) }
+//         );
+
+//         return res.json({
+//             success: true,
+//             message: 'Agendamento deletado com sucesso!'
+//         });
+
+//     } catch (error) {
+//         console.error('Erro ao deletar agendamento:', error);
+//         return res.status(500).json({ success: false, message: 'Erro ao deletar agendamento' });
+//     }
+// });
+
 router.post('/deletar-agendamento', async (req, res) => {
     try {
         const project_id = Number(req.body.project_id);
@@ -1114,33 +1174,25 @@ router.post('/deletar-agendamento', async (req, res) => {
             });
         }
 
-        // 🔧 goDataEngine.delete, não goDataEngine.deleteRecords
-        await goDataEngine.delete(
-            project_id,
-            id_instancia,
-            'agendamento_servicos',
-            { agendamento_id: Number(agendamento_id) }
-        );
-
-        await goDataEngine.delete(
+        // 🔧 Em vez de deletar, só atualiza o status pra cancelado
+        await goDataEngine.update(
             project_id,
             id_instancia,
             'agendamentos',
+            { status: 'cancelado' },
             { id: Number(agendamento_id) }
         );
 
         return res.json({
             success: true,
-            message: 'Agendamento deletado com sucesso!'
+            message: 'Agendamento cancelado com sucesso!'
         });
 
     } catch (error) {
-        console.error('Erro ao deletar agendamento:', error);
-        return res.status(500).json({ success: false, message: 'Erro ao deletar agendamento' });
+        console.error('Erro ao cancelar agendamento:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao cancelar agendamento' });
     }
 });
-
-
 
 router.post('/my-schedules', async (req, res) => {
 
@@ -1378,6 +1430,178 @@ router.post('/my-schedules', async (req, res) => {
     }
 
 });
+
+
+router.post('/historico-agendamentos', async (req, res) => {
+
+    try {
+
+        const project_id = Number(req.body.project_id);
+        const id_instancia = Number(req.body.id_instancia);
+        const { cliente_id } = req.body;
+
+        // =========================================================
+        // 1. VALIDAÇÃO
+        // =========================================================
+
+        if (!cliente_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'cliente_id é obrigatório'
+            });
+        }
+
+        // =========================================================
+        // 2. TEXTOS
+        // =========================================================
+
+        const textosResult = await goDataEngine.advancedSelect({
+            project_id,
+            id_instancia,
+            table: 'site_texts',
+            select: ['*'],
+            order_by: 'key_name ASC'
+        });
+
+        const textos = {};
+        (textosResult.data || []).forEach(t => {
+            textos[t.key_name] = t.value;
+        });
+
+        // =========================================================
+        // 3. BUSCA AGENDAMENTOS (mesmo join do my-schedules)
+        // =========================================================
+
+        const linhasResult = await goDataEngine.advancedSelect({
+
+            project_id,
+            id_instancia,
+
+            table: 'agendamentos',
+            alias: 'a',
+
+            select: [
+                'a.id',
+                'a.data',
+                'a.hora',
+                'a.status',
+                'a.observacoes',
+
+                's.nome AS servico_nome',
+                's.preco AS servico_preco',
+                's.duracao_min',
+
+                'p.nome AS profissional'
+            ],
+
+            joins: [
+                {
+                    type: 'INNER',
+                    table: 'agendamento_servicos',
+                    alias: 'ags',
+                    on: 'a.id = ags.agendamento_id'
+                },
+                {
+                    type: 'INNER',
+                    table: 'servicos',
+                    alias: 's',
+                    on: 'ags.servico_id = s.id'
+                },
+                {
+                    type: 'INNER',
+                    table: 'profissionais',
+                    alias: 'p',
+                    on: 'a.profissional_id = p.id'
+                }
+            ],
+
+            where: {
+                'a.cliente_id': Number(cliente_id),
+            },
+
+            // 🔧 histórico ordenado do mais recente pro mais antigo
+            order_by: 'a.data DESC, a.hora DESC'
+
+        });
+
+        // =========================================================
+        // 4. DATA DE HOJE
+        // =========================================================
+
+        const linhas = linhasResult.data || [];
+        const hoje = new Date().toISOString().split('T')[0];
+
+        // =========================================================
+        // 5. AGRUPA POR AGENDAMENTO (só passado ou concluído/cancelado)
+        // =========================================================
+
+        const mapa = new Map();
+
+        for (const linha of linhas) {
+
+            // 🔧 histórico = data passada OU já concluído/cancelado
+            const ehPassado = linha.data < hoje;
+            const ehFinalizado = linha.status === 'concluido' || linha.status === 'cancelado';
+
+            if (!ehPassado && !ehFinalizado) {
+                continue;
+            }
+
+            if (!mapa.has(linha.id)) {
+
+                mapa.set(linha.id, {
+                    id: linha.id,
+                    data: linha.data,
+                    hora: linha.hora,
+                    status: linha.status,
+                    observacoes: linha.observacoes,
+                    profissional: linha.profissional,
+                    servicos: [],
+                    duracao_total: 0,
+                    preco_total: 0
+                });
+
+            }
+
+            const item = mapa.get(linha.id);
+
+            item.servicos.push(linha.servico_nome);
+            item.duracao_total += Number(linha.duracao_min);
+            item.preco_total += Number(linha.servico_preco);
+
+        }
+
+        // =========================================================
+        // 6. RESULTADO
+        // =========================================================
+
+        const agendamentos = Array.from(mapa.values());
+
+        // =========================================================
+        // 7. RESPOSTA
+        // =========================================================
+
+        return res.json({
+            success: true,
+            data: {
+                textos,
+                agendamentos
+            }
+        });
+
+    } catch (error) {
+
+        console.error('Erro ao listar histórico de agendamentos:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: 'Erro ao listar histórico'
+        });
+
+    }
+
+});
+
 
 // ============================================================
 // PÁGINA DE PERFIL (GET /profile) — só textos, cliente já vem da sessão do site

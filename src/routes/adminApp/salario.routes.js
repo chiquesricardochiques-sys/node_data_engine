@@ -32,13 +32,15 @@ function semanaAtual() {
     };
 }
 
-function calcularGanho(prof, totalGerado) {
+// Calcula o ganho individual considerando os dados salvos no agendamento
+function calcularGanhoAgendamento(item, totalGerado) {
     const gerado = Number(totalGerado) || 0;
-    const percentual = Number(prof.percentual_comissao) || 0;
-    const fixo = Number(prof.salario_fixo) || 0;
+    const tipo = item.tipo_remuneracao || 'comissao';
+    const percentual = Number(item.percentual_comissao) || 0;
+    const fixo = Number(item.salario_fixo) || 0;
 
-    if (prof.tipo_remuneracao === 'clt') return fixo;
-    if (prof.tipo_remuneracao === 'hibrido') return fixo + gerado * (percentual / 100);
+    if (tipo === 'clt') return fixo;
+    if (tipo === 'hibrido') return fixo + gerado * (percentual / 100);
     return gerado * (percentual / 100); // 'comissao' (padrão)
 }
 
@@ -53,7 +55,7 @@ router.post('/salario/rendimento', async (req, res) => {
 
         const mesFiltro = mes_ano || mesAtualPrefix();
 
-        // 1. Dados de remuneração do profissional
+        // 1. Dados cadastrais básicos do profissional (apenas para nome, foto e fallback geral)
         const profResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -69,13 +71,16 @@ router.post('/salario/rendimento', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Profissional não encontrado' });
         }
 
-        // 2. Todos os atendimentos CONCLUÍDOS desse profissional, já com preço dos serviços
+        // 2. Buscar atendimentos CONCLUÍDOS trazendo as regras de remuneração individuais do agendamento
         const linhasResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
             table: 'agendamentos',
             alias: 'a',
-            select: ['a.id', 'a.data', 's.preco AS servico_preco'],
+            select: [
+                'a.id', 'a.data', 'a.tipo_remuneracao', 'a.percentual_comissao', 'a.salario_fixo',
+                's.preco AS servico_preco'
+            ],
             joins: [
                 { type: 'INNER', table: 'agendamento_servicos', alias: 'ags', on: 'a.id = ags.agendamento_id' },
                 { type: 'INNER', table: 'servicos', alias: 's', on: 'ags.servico_id = s.id' }
@@ -88,25 +93,40 @@ router.post('/salario/rendimento', async (req, res) => {
 
         const linhas = linhasResult.data || [];
 
-        // agrupa por agendamento (soma os serviços de cada um)
+        // Agrupa por agendamento (soma o preço total dos serviços e preserva as regras salariais do agendamento)
         const mapa = new Map();
         for (const linha of linhas) {
             if (!mapa.has(linha.id)) {
-                mapa.set(linha.id, { id: linha.id, data: linha.data, total: 0 });
+                mapa.set(linha.id, { 
+                    id: linha.id, 
+                    data: linha.data, 
+                    tipo_remuneracao: linha.tipo_remuneracao || prof.tipo_remuneracao,
+                    percentual_comissao: linha.percentual_comissao ?? prof.percentual_comissao,
+                    salario_fixo: linha.salario_fixo ?? prof.salario_fixo,
+                    total: 0 
+                });
             }
-            mapa.get(linha.id).total += Number(linha.servico_preco);
+            mapa.get(linha.id).total += Number(linha.servico_preco || 0);
         }
         const concluidos = Array.from(mapa.values());
 
-        // 3. Classifica nos períodos
+        // 3. Classifica nos períodos e soma calculando ganho individual por agendamento
         const hoje = hojeSQL();
         const semana = semanaAtual();
         const mesAtual = mesAtualPrefix();
 
         function somarPeriodo(filtro) {
             const itens = concluidos.filter(filtro);
-            const total = itens.reduce((acc, i) => acc + i.total, 0);
-            return { qtd: itens.length, totalGerado: total, valorGanho: calcularGanho(prof, total) };
+            const totalGerado = itens.reduce((acc, i) => acc + i.total, 0);
+            
+            // Soma o ganho líquido de cada agendamento individualmente
+            const valorGanho = itens.reduce((acc, i) => acc + calcularGanhoAgendamento(i, i.total), 0);
+
+            return { 
+                qtd: itens.length, 
+                totalGerado: Number(totalGerado.toFixed(2)), 
+                valorGanho: Number(valorGanho.toFixed(2)) 
+            };
         }
 
         return res.json({
