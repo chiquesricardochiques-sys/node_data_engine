@@ -500,14 +500,35 @@ router.post('/register-cliente', async (req, res) => {
 // ============================================================================
 // FORGOT PASSWORD
 // ============================================================================
+// ============================================================
+// FUNÇÃO: FORMATA DATE PARA DATETIME DO MYSQL
+// ============================================================
+
+function formatarDatetimeMysql(data) {
+    return data
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
+}
+
+
+// ============================================================
+// POST /mobile/forgot-password
+// ============================================================
+
 router.post('/forgot-password', async (req, res) => {
 
     try {
+
         const project_id = Number(req.body.project_id);
         const id_instancia = Number(req.body.id_instancia);
         const { email } = req.body;
 
-        // busca os textos do site (sempre necessário pra renderizar a página)
+
+        // ====================================================
+        // BUSCA OS TEXTOS DO SITE
+        // ====================================================
+
         const textosResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
@@ -517,41 +538,94 @@ router.post('/forgot-password', async (req, res) => {
         });
 
         const textos = {};
-        textosResult.data.forEach(t => {
-            textos[t.key_name] = t.value;
-        });
 
-        if (!email) {
-            return res.json({   // 🔧 removido .status(400)
-                success: false,
-                message: 'Email é obrigatório',
-                data: { textos }
+        if (textosResult.data) {
+            textosResult.data.forEach(t => {
+                textos[t.key_name] = t.value;
             });
         }
 
-        // verifica se o cliente existe
+
+        // ====================================================
+        // VALIDA EMAIL
+        // ====================================================
+
+        if (!email) {
+
+            return res.json({
+                success: false,
+                message: 'Email é obrigatório',
+                data: {
+                    textos
+                }
+            });
+
+        }
+
+
+        // ====================================================
+        // PROCURA O CLIENTE
+        // ====================================================
+
         const clientesResult = await goDataEngine.advancedSelect({
             project_id,
             id_instancia,
             table: 'clientes',
             select: ['*'],
-            where: { email },
+            where: {
+                email
+            },
             limit: 1
         });
 
-        const cliente = (clientesResult.data && clientesResult.data[0]) || null;
+        const cliente =
+            (clientesResult.data && clientesResult.data[0])
+                || null;
+
+
+        // ====================================================
+        // CLIENTE NÃO ENCONTRADO
+        // ====================================================
 
         if (!cliente) {
+
             return res.json({
                 success: false,
                 message: 'Email não encontrado',
-                data: { textos }
+                data: {
+                    textos
+                }
             });
+
         }
 
-        // gera e salva o token de recuperação
-        const token = crypto.randomBytes(32).toString('hex');
-        const expira = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+        // ====================================================
+        // GERA TOKEN
+        // ====================================================
+
+        const token = crypto
+            .randomBytes(32)
+            .toString('hex');
+
+
+        // Token válido por 1 hora
+        const expira = new Date(
+            Date.now() + 60 * 60 * 1000
+        );
+
+
+        // ====================================================
+        // FORMATA DATA PARA MYSQL
+        // ====================================================
+
+        const reset_token_expira =
+            formatarDatetimeMysql(expira);
+
+
+        // ====================================================
+        // SALVA TOKEN NO CLIENTE
+        // ====================================================
 
         await goDataEngine.update(
             project_id,
@@ -559,29 +633,64 @@ router.post('/forgot-password', async (req, res) => {
             'clientes',
             {
                 reset_token: token,
-                reset_token_expira: formatarDatetimeMysql(expira)   // 🔧 formatado pro MySQL
+                reset_token_expira: reset_token_expira
             },
-            { email }
+            {
+                email
+            }
         );
 
+
+        // ====================================================
+        // RETORNO
+        // ====================================================
+
         return res.json({
+
             success: true,
+
             message: 'Token gerado com sucesso',
+
             data: {
+
                 textos,
+
                 token
+
             }
+
         });
+
 
     } catch (error) {
-        console.error('Erro ao processar recuperação:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Erro ao processar recuperação'
-        });
-    }   
-});
 
+        // ====================================================
+        // LOG COMPLETO DO ERRO
+        // ====================================================
+
+       
+
+
+        // ====================================================
+        // RESPOSTA
+        // ====================================================
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: "Erro ao processar recuperação",
+
+            error:
+                process.env.NODE_ENV === "development"
+                    ? error?.message
+                    : undefined
+
+        });
+
+    }
+
+});
 
 router.post('/reset-senha', async (req, res) => {
 
